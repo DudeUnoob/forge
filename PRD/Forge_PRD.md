@@ -100,6 +100,16 @@ The “Storyboard” is the primary navigation surface: developers scroll and co
 \*\*Acceptance criteria\*\*  
 \- Searching “authentication flow” returns at least 3 relevant artifacts (files/blocks/docs) for the demo repo. \[file:1\]
 
+\#\#\# 8.9 Progressive onboarding pipeline \& context streaming  
+\*\*FR-21\*\* After repository ingest, users must enter workspace immediately; parse/storyboard steps continue asynchronously in the background.    
+\*\*FR-22\*\* Workspace must show live pipeline stage state (cloning, parsing, storyboard generation, ready/error) and remain usable for file browsing while generation is in progress.    
+\*\*FR-23\*\* Chat context must be assembled as deterministic “context packets” per block (block summary \+ key symbols \+ bounded file excerpts \+ prerequisite summaries) with explicit token budget caps and truncation rules.    
+\*\*FR-24\*\* Pipeline must be idempotent and resumable: re-opening the same repo continues from latest status without rerunning completed stages.    
+\*\*Acceptance criteria\*\*  
+\- User can open workspace and browse files before storyboard generation finishes.    
+\- Refreshing the page during parsing/generation resumes the same pipeline stage and eventually loads storyboard without manual restart.    
+\- For demo repos, perceived time from clicking Forge to first interactive workspace render is \< 10 seconds.
+
 \#\# 9\) Data model (MVP schemas)
 
 \#\#\# 9.1 StoryboardBlock (JSON)  
@@ -126,6 +136,19 @@ The “Storyboard” is the primary navigation surface: developers scroll and co
 \- timeOnBlockSeconds (map)  
 \- lastActiveAt  
 \- quizResults (optional) \[file:1\]
+
+\#\#\# 9.3 ContextPacket (for block chat grounding)  
+\- contextPacketId  
+\- repoSnapshotId  
+\- storyboardId  
+\- blockId  
+\- summaryText  
+\- symbolList (string\[\])  
+\- snippetRefs ({ path, startLine, endLine, hash }\[\])  
+\- prerequisiteSummaries (map)  
+\- tokenBudget (object)  
+\- createdAt  
+\- cacheKey (repoSnapshotId \+ blockId \+ promptVersion)
 
 \#\# 10\) Non-functional requirements
 
@@ -190,4 +213,3 @@ MVP limits: 1–2 medium open-source repos, limited languages, generation-on-dem
 \*\*Objective:\*\* Understand how requests traverse the backend, where data is persisted, and what to read first    
 \*\*Key files:\*\* \`src/api/routes.ts\`, \`src/handlers/storyboard.ts\`, \`src/storage/dynamo.ts\`    
 \*\*Chat scope:\*\* This block \+ dependencies only
-

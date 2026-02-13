@@ -18,48 +18,24 @@ export default function LandingPage() {
 
     setLoading(true);
     setError(null);
-    setStatus('Cloning repository...');
-    setProgress(10);
+    setStatus('Cloning repository and preparing workspace...');
+    setProgress(20);
 
     try {
-      // Step 1: Ingest (or reuse an exact cached build if available)
+      // Ingest first, then continue parse/storyboard generation in workspace.
       const ingestResult = await api.repos.ingest(gitUrl.trim());
-      const { repoId } = ingestResult;
-      let storyboardId = ingestResult.storyboardId || null;
+      const { repoId, storyboardId } = ingestResult;
 
-      if (ingestResult.cached && ingestResult.status === 'PARSED' && storyboardId) {
-        setStatus('Cached build found. Launching workspace...');
-        setProgress(100);
-        setTimeout(() => {
-          router.push(`/workspace/${repoId}?storyboard=${storyboardId}`);
-        }, 300);
-        return;
-      }
-
-      // Step 2: Parse (skip if already parsed)
-      if (ingestResult.status !== 'PARSED') {
-        setStatus('Repository cloned. Parsing modules...');
-        setProgress(35);
-        await api.repos.parse(repoId);
-      }
-
-      // Step 3: Generate storyboard (skip if one already exists on cached repo)
-      if (!storyboardId) {
-        setStatus('Modules parsed. Generating storyboard...');
-        setProgress(65);
-        const generated = await api.storyboard.generate(repoId);
-        storyboardId = generated.storyboardId;
-      }
-
-      setStatus('Storyboard ready! Launching workspace...');
+      setStatus(storyboardId
+        ? 'Cached storyboard found. Launching workspace...'
+        : 'Repository snapshot ready. Launching workspace...');
       setProgress(100);
 
-      // Navigate to workspace
       setTimeout(() => {
         router.push(storyboardId
           ? `/workspace/${repoId}?storyboard=${storyboardId}`
           : `/workspace/${repoId}`);
-      }, 500);
+      }, 250);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'An unknown error occurred';
       setError(message);

@@ -300,6 +300,30 @@
     background: var(--bg-hover);
 }
 
+.icon-btn--active {
+    color: var(--accent) !important;
+}
+
+/* ---- Progressive hint bar ---- */
+.progressive-hint {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    font-size: 10px;
+    color: var(--text-muted);
+    background: rgba(0, 122, 204, 0.06);
+    border-bottom: 1px solid rgba(0, 122, 204, 0.1);
+}
+
+.progressive-hint .codicon {
+    width: 12px;
+    height: 12px;
+    font-size: 12px;
+    color: var(--accent);
+    opacity: 0.7;
+}
+
 .sidebar-search {
     padding: 7px 10px;
     border-bottom: 1px solid #00000033;
@@ -377,6 +401,55 @@
 
 .file-tree-children {
     display: block;
+}
+
+/* ---- Progressive file reveal animations ---- */
+.file-tree-item--new {
+    animation: fileReveal 0.45s ease-out;
+}
+
+.file-tree-dir--new>.file-tree-item {
+    animation: fileReveal 0.45s ease-out;
+}
+
+@keyframes fileReveal {
+    from {
+        opacity: 0;
+        transform: translateX(-8px);
+    }
+
+    60% {
+        opacity: 1;
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.file-tree-item--new::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 122, 204, 0.08);
+    border-radius: 2px;
+    pointer-events: none;
+    animation: fileFadeHighlight 1.6s ease-out forwards;
+}
+
+@keyframes fileFadeHighlight {
+    from {
+        opacity: 1;
+    }
+
+    to {
+        opacity: 0;
+    }
+}
+
+.file-tree-item {
+    position: relative;
 }
 
 .seti-icon {
@@ -512,7 +585,7 @@
     margin-right: -2px;
 }
 
-.editor-tab > span:nth-child(2) {
+.editor-tab>span:nth-child(2) {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -923,6 +996,100 @@
 .block-detail {
     padding: 6px;
     overflow-y: auto;
+}
+
+/* Subtle slide-up on block change */
+.block-detail.animate-fade-in {
+    animation: blockSlideIn 0.3s ease-out;
+}
+
+@keyframes blockSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ---- Lego block progress visualization ---- */
+.lego-progress {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    padding: 8px 0;
+}
+
+.lego-brick {
+    width: 24px;
+    height: 14px;
+    border-radius: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    cursor: pointer;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+    position: relative;
+}
+
+.lego-brick::before {
+    content: '';
+    position: absolute;
+    top: -3px;
+    left: 5px;
+    width: 5px;
+    height: 3px;
+    border-radius: 1px 1px 0 0;
+    background: inherit;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: none;
+}
+
+.lego-brick::after {
+    content: '';
+    position: absolute;
+    top: -3px;
+    right: 5px;
+    width: 5px;
+    height: 3px;
+    border-radius: 1px 1px 0 0;
+    background: inherit;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: none;
+}
+
+.lego-brick--completed {
+    background: var(--success);
+    border-color: rgba(137, 209, 133, 0.4);
+}
+
+.lego-brick--active {
+    background: var(--accent);
+    border-color: rgba(0, 122, 204, 0.6);
+    animation: brickPulse 2s ease-in-out infinite;
+}
+
+.lego-brick--locked {
+    background: #2a2a2a;
+    border-color: #3a3a3a;
+    opacity: 0.5;
+}
+
+.lego-brick:hover:not(.lego-brick--locked) {
+    transform: translateY(-1px);
+}
+
+@keyframes brickPulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.7;
+    }
 }
 
 .block-detail-header {
@@ -1388,6 +1555,106 @@
     color: var(--success);
     margin-top: 2px;
     flex-shrink: 0;
+}
+
+/* ---- Building Intro Overlay ---- */
+.building-intro {
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    background: #1a1a1a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: introFadeOut 0.5s ease-out 1.8s forwards;
+    pointer-events: none;
+}
+
+.building-intro-content {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    animation: introContentIn 0.4s ease-out;
+}
+
+.building-intro-icon .codicon {
+    width: 32px;
+    height: 32px;
+    font-size: 32px;
+    color: var(--accent);
+    animation: introIconPulse 1.6s ease-in-out infinite;
+}
+
+.building-intro-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: #f0f0f0;
+    letter-spacing: -0.3px;
+}
+
+.building-intro-subtitle {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.building-intro-bricks {
+    display: flex;
+    gap: 4px;
+    margin-top: 12px;
+}
+
+.building-intro-brick {
+    width: 18px;
+    height: 10px;
+    border-radius: 2px;
+    background: var(--accent);
+    opacity: 0;
+    animation: brickStackIn 0.3s ease-out forwards;
+}
+
+@keyframes brickStackIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 0.7;
+        transform: translateY(0);
+    }
+}
+
+@keyframes introContentIn {
+    from {
+        opacity: 0;
+        transform: scale(0.97);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes introFadeOut {
+    to {
+        opacity: 0;
+        visibility: hidden;
+    }
+}
+
+@keyframes introIconPulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.6;
+    }
 }
 
 /* ---- Command Palette ---- */

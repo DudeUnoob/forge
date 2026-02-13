@@ -57,6 +57,7 @@ const FILE_CONTENT_CACHE_LIMIT = 80;
 const PREFETCH_BATCH_SIZE = 20;
 const PREFETCH_TREE_SAMPLE_SIZE = 16;
 const PREFETCH_BLOCK_SAMPLE_SIZE = 12;
+const REPO_POLL_INTERVAL_MS = 2500;
 
 // =============== Main Workspace Component ===============
 
@@ -64,12 +65,13 @@ export default function WorkspacePage() {
     const params = useParams();
     const searchParams = useSearchParams();
     const repoId = params.repoId as string;
-    const storyboardId = searchParams.get('storyboard');
+    const initialStoryboardId = searchParams.get('storyboard');
 
     // Core state
     const [repo, setRepo] = useState<Repo | null>(null);
     const [fileTree, setFileTree] = useState<FileNode | null>(null);
     const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
+    const [activeStoryboardId, setActiveStoryboardId] = useState<string | null>(initialStoryboardId);
     const [activeBlock, setActiveBlock] = useState<StoryboardBlock | null>(null);
     const [completedBlocks, setCompletedBlocks] = useState<Set<string>>(new Set());
 
@@ -92,9 +94,13 @@ export default function WorkspacePage() {
     const [treeFilter, setTreeFilter] = useState('');
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [setiTheme, setSetiTheme] = useState<SetiIconTheme | null>(null);
+    const [pipelineMessage, setPipelineMessage] = useState<string | null>(null);
+    const [pipelineBusy, setPipelineBusy] = useState(false);
     const fileContentCacheRef = useRef<Map<string, string>>(new Map());
     const inFlightFileRequestsRef = useRef<Map<string, Promise<string>>>(new Map());
     const prefetchedPathsRef = useRef<Set<string>>(new Set());
+    const parseTriggeredRef = useRef(false);
+    const storyboardTriggeredRef = useRef(false);
 
     useEffect(() => {
         let isMounted = true;
@@ -140,7 +146,15 @@ export default function WorkspacePage() {
         fileContentCacheRef.current.clear();
         inFlightFileRequestsRef.current.clear();
         prefetchedPathsRef.current.clear();
-    }, [repoId]);
+        parseTriggeredRef.current = false;
+        storyboardTriggeredRef.current = false;
+        setActiveStoryboardId(initialStoryboardId);
+        setPipelineBusy(false);
+        setPipelineMessage(null);
+        setStoryboard(null);
+        setActiveBlock(null);
+        setCompletedBlocks(new Set());
+    }, [repoId, initialStoryboardId]);
 
     const cacheFileContent = useCallback((path: string, content: string) => {
         const cache = fileContentCacheRef.current;
@@ -230,45 +244,192 @@ export default function WorkspacePage() {
         void prefetchFiles([path]);
     }, [prefetchFiles]);
 
-    // ---- Fetch data on mount ----
+    const refreshRepo = useCallback(async () => {
+        const repoData = await api.repos.get(repoId);
+        setRepo(repoData);
+        if (repoData.storyboardId && repoData.storyboardId !== activeStoryboardId) {
+            setActiveStoryboardId(repoData.storyboardId);
+        }
+        return repoData;
+    }, [activeStoryboardId, repoId]);
+
+    // ---- Fetch base data on mount ----
     useEffect(() => {
+        let isMounted = true;
+
         async function load() {
+            setLoading(true);
             const loadErrors: string[] = [];
 
-            try {
-                const repoData = await api.repos.get(repoId);
-                setRepo(repoData);
-            } catch (err) {
-                const msg = err instanceof Error ? err.message : 'Failed to load repo';
-                loadErrors.push(`Repo: ${msg}`);
-                console.error('Repo load error:', err);
-            }
+            const [repoResult, filesResult] = await Promise.allSettled([
+                api.repos.get(repoId),
+                api.repos.files(repoId),
+            ]);
 
-            try {
-                const filesData = await api.repos.files(repoId);
-                setFileTree(filesData.tree);
-            } catch (err) {
-                const msg = err instanceof Error ? err.message : 'Failed to load files';
-                loadErrors.push(`Files: ${msg}`);
-                console.error('Files load error:', err);
-            }
+            if (!isMounted) return;
 
-            if (storyboardId) {
-                try {
-                    const sb = await api.storyboard.get(storyboardId);
-                    setStoryboard(sb);
-                } catch (err) {
-                    const msg = err instanceof Error ? err.message : 'Failed to load storyboard';
-                    loadErrors.push(`Storyboard: ${msg}`);
-                    console.error('Storyboard load error:', err);
+            if (repoResult.status === 'fulfilled') {
+                setRepo(repoResult.value);
+                if (repoResult.value.storyboardId) {
+                    setActiveStoryboardId(repoResult.value.storyboardId);
                 }
+            } else {
+                const msg = repoResult.reason instanceof Error ? repoResult.reason.message : 'Failed to load repo';
+                loadErrors.push(`Repo: ${msg}`);
+                console.error('Repo load error:', repoResult.reason);
+            }
+
+            if (filesResult.status === 'fulfilled') {
+                setFileTree(filesResult.value.tree);
+            } else {
+                const msg = filesResult.reason instanceof Error ? filesResult.reason.message : 'Failed to load files';
+                loadErrors.push(`Files: ${msg}`);
+                console.error('Files load error:', filesResult.reason);
             }
 
             if (loadErrors.length > 0) setErrors(loadErrors);
             setLoading(false);
         }
-        load();
-    }, [repoId, storyboardId]);
+
+        void load();
+        return () => {
+            isMounted = false;
+        };
+    }, [repoId]);
+
+    // ---- Fetch storyboard whenever an id is available ----
+    useEffect(() => {
+        if (!activeStoryboardId) {
+            setStoryboard(null);
+            return;
+        }
+
+        let isMounted = true;
+        api.storyboard.get(activeStoryboardId)
+            .then((sb) => {
+                if (!isMounted) return;
+                setStoryboard(sb);
+                setPipelineBusy(false);
+                setPipelineMessage(null);
+            })
+            .catch((err) => {
+                if (!isMounted) return;
+                const msg = err instanceof Error ? err.message : 'Failed to load storyboard';
+                setErrors(prev => [...prev, `Storyboard: ${msg}`]);
+                console.error('Storyboard load error:', err);
+            });
+
+        return () => {
+            isMounted = false;
+        };
+    }, [activeStoryboardId]);
+
+    // ---- Poll repo status until storyboard is ready ----
+    useEffect(() => {
+        if (!repoId) return;
+
+        const shouldPoll = !repo?.storyboardId
+            || repo.status === 'PARSING'
+            || repo.status === 'GENERATING_STORYBOARD'
+            || repo.status === 'UPLOADED'
+            || repo.status === 'CLONING';
+
+        if (!shouldPoll) return;
+
+        const timer = window.setInterval(() => {
+            void refreshRepo().catch((err) => {
+                console.error('Repo poll error:', err);
+            });
+        }, REPO_POLL_INTERVAL_MS);
+
+        return () => {
+            window.clearInterval(timer);
+        };
+    }, [refreshRepo, repo?.status, repo?.storyboardId, repoId]);
+
+    // ---- Orchestrate parse + storyboard stages in the background ----
+    useEffect(() => {
+        if (!repo) return;
+
+        if (repo.storyboardId) {
+            setPipelineBusy(false);
+            setPipelineMessage(null);
+            if (repo.storyboardId !== activeStoryboardId) {
+                setActiveStoryboardId(repo.storyboardId);
+            }
+            return;
+        }
+
+        if (repo.status === 'CLONING') {
+            setPipelineBusy(true);
+            setPipelineMessage('Cloning repository snapshot...');
+            return;
+        }
+
+        if (repo.status === 'UPLOADED') {
+            setPipelineBusy(true);
+            setPipelineMessage('Parsing modules and dependency graph...');
+            if (!parseTriggeredRef.current) {
+                parseTriggeredRef.current = true;
+                void api.repos.parse(repoId)
+                    .then(() => refreshRepo())
+                    .catch((err) => {
+                        console.error('Parse trigger error:', err);
+                        setErrors(prev => [...prev, `Parse: ${err instanceof Error ? err.message : 'Failed to parse repository'}`]);
+                    });
+            }
+            return;
+        }
+
+        if (repo.status === 'PARSING') {
+            setPipelineBusy(true);
+            setPipelineMessage('Parsing modules and dependency graph...');
+            return;
+        }
+
+        if (repo.status === 'PARSED') {
+            if (!repo.storyboardId) {
+                if (repo.storyboardErrorMessage) {
+                    setPipelineBusy(false);
+                    setPipelineMessage(`Storyboard generation failed: ${repo.storyboardErrorMessage}`);
+                    return;
+                }
+
+                setPipelineBusy(true);
+                setPipelineMessage('Generating storyboard blocks...');
+                if (!storyboardTriggeredRef.current) {
+                    storyboardTriggeredRef.current = true;
+                    void api.storyboard.generate(repoId, role)
+                        .then((result) => {
+                            if (result.storyboardId) {
+                                setActiveStoryboardId(result.storyboardId);
+                            }
+                            return refreshRepo();
+                        })
+                        .catch((err) => {
+                            console.error('Storyboard trigger error:', err);
+                            setErrors(prev => [...prev, `Storyboard: ${err instanceof Error ? err.message : 'Failed to generate storyboard'}`]);
+                        });
+                }
+            } else {
+                setPipelineBusy(false);
+                setPipelineMessage(null);
+            }
+            return;
+        }
+
+        if (repo.status === 'GENERATING_STORYBOARD') {
+            setPipelineBusy(true);
+            setPipelineMessage('Generating storyboard blocks...');
+            return;
+        }
+
+        if (repo.status === 'ERROR') {
+            setPipelineBusy(false);
+            const message = repo.errorMessage || 'Pipeline failed. Please retry with another repository or refresh.';
+            setPipelineMessage(message);
+        }
+    }, [activeStoryboardId, refreshRepo, repo, repoId, role]);
 
     // Warm cache for likely next-open files
     useEffect(() => {
@@ -436,7 +597,7 @@ export default function WorkspacePage() {
 
     // ---- Send chat message ----
     const sendChat = useCallback(async () => {
-        if (!chatInput.trim() || !storyboardId || !activeBlock) return;
+        if (!chatInput.trim() || !activeStoryboardId || !activeBlock) return;
 
         const userMsg: ChatMessage = { role: 'user', content: chatInput.trim() };
         setChatMessages(prev => [...prev, userMsg]);
@@ -444,7 +605,7 @@ export default function WorkspacePage() {
         setChatLoading(true);
 
         try {
-            const { response } = await api.chat.send(storyboardId, activeBlock.blockId, userMsg.content);
+            const { response } = await api.chat.send(activeStoryboardId, activeBlock.blockId, userMsg.content);
             setChatMessages(prev => [...prev, { role: 'assistant', content: response }]);
         } catch (err) {
             console.error('Chat error:', err);
@@ -455,7 +616,7 @@ export default function WorkspacePage() {
         } finally {
             setChatLoading(false);
         }
-    }, [chatInput, storyboardId, activeBlock]);
+    }, [activeStoryboardId, activeBlock, chatInput]);
 
     // ---- Dismiss error ----
     const dismissError = useCallback((index: number) => {
@@ -471,6 +632,7 @@ export default function WorkspacePage() {
     }
 
     const activeFile = activeFileIndex >= 0 ? openFiles[activeFileIndex] : null;
+    const pipelineState = repo?.status === 'ERROR' ? 'error' : (pipelineBusy ? 'busy' : 'idle');
 
     return (
         <div className="workspace">
@@ -656,6 +818,18 @@ export default function WorkspacePage() {
                     </div>
                 )}
 
+                {pipelineMessage && (
+                    <div className={`pipeline-banner ${pipelineState}`}>
+                        <span className="pipeline-banner-icon">
+                            <Codicon
+                                name={pipelineState === 'error' ? 'warning' : (pipelineBusy ? 'sync' : 'check')}
+                                className={pipelineBusy ? 'spin' : ''}
+                            />
+                        </span>
+                        <span className="pipeline-banner-text">{pipelineMessage}</span>
+                    </div>
+                )}
+
                 {/* Tabs */}
                 {openFiles.length > 0 && (
                     <div className="editor-tabs">
@@ -766,6 +940,13 @@ export default function WorkspacePage() {
                     {activeFile && (
                         <div className="statusbar-item">
                             {getLanguageName(activeFile.path)}
+                        </div>
+                    )}
+                    {pipelineMessage && (
+                        <div className="statusbar-item">
+                            {pipelineBusy
+                                ? 'Building storyboard…'
+                                : (repo?.status === 'ERROR' ? 'Pipeline error' : 'Storyboard ready')}
                         </div>
                     )}
                     <div className="statusbar-item">

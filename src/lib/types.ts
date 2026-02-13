@@ -14,6 +14,7 @@ export interface Repo {
     storyboardId?: string;
     storyboardBlockCount?: number;
     errorMessage?: string;
+    storyboardErrorMessage?: string;
     createdAt: string;
 }
 

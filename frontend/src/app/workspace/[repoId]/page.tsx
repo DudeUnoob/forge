@@ -41,6 +41,7 @@ interface MermaidRenderResult {
 interface MermaidApi {
     initialize: (config: Record<string, unknown>) => void;
     render: (id: string, diagram: string) => Promise<MermaidRenderResult>;
+    parse: (diagram: string) => Promise<unknown>;
 }
 
 declare global {
@@ -95,6 +96,15 @@ export default function WorkspacePage() {
     const fileContentCacheRef = useRef<Map<string, string>>(new Map());
     const inFlightFileRequestsRef = useRef<Map<string, Promise<string>>>(new Map());
     const prefetchedPathsRef = useRef<Set<string>>(new Set());
+
+    // Progressive reveal state
+    const [revealedFiles, setRevealedFiles] = useState<Set<string>>(new Set());
+    const [showAllFiles, setShowAllFiles] = useState(false);
+    const [newlyRevealedFiles, setNewlyRevealedFiles] = useState<Set<string>>(new Set());
+    const newFilesTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Building intro state
+    const [showIntro, setShowIntro] = useState(true);
 
     useEffect(() => {
         let isMounted = true;
@@ -360,7 +370,26 @@ export default function WorkspacePage() {
         setActiveBlock(block);
         setChatMessages([]);
         setHighlightedLines(new Set());
+
+        // Progressive reveal: add this block's keyFiles to the revealed set
         if (block.keyFiles?.length > 0) {
+            setRevealedFiles(prev => {
+                const next = new Set(prev);
+                const freshFiles = new Set<string>();
+                for (const f of block.keyFiles) {
+                    if (!next.has(f)) {
+                        next.add(f);
+                        freshFiles.add(f);
+                    }
+                }
+                // Track newly revealed files for subtle animation
+                if (freshFiles.size > 0) {
+                    setNewlyRevealedFiles(freshFiles);
+                    if (newFilesTimerRef.current) clearTimeout(newFilesTimerRef.current);
+                    newFilesTimerRef.current = setTimeout(() => setNewlyRevealedFiles(new Set()), 1800);
+                }
+                return next;
+            });
             void prefetchFiles(block.keyFiles.slice(0, PREFETCH_BLOCK_SAMPLE_SIZE));
             void openFile(block.keyFiles[0]);
         }
@@ -470,10 +499,42 @@ export default function WorkspacePage() {
         );
     }
 
+    // Auto-dismiss intro after a brief delay
+    if (showIntro && storyboard && storyboard.blocks.length > 0) {
+        setTimeout(() => setShowIntro(false), 2200);
+    } else if (showIntro) {
+        // No storyboard — skip intro
+        setTimeout(() => setShowIntro(false), 0);
+    }
+
     const activeFile = activeFileIndex >= 0 ? openFiles[activeFileIndex] : null;
 
     return (
         <div className="workspace">
+            {/* ---- Building Intro Overlay ---- */}
+            {showIntro && storyboard && (
+                <div className="building-intro">
+                    <div className="building-intro-content">
+                        <div className="building-intro-icon">
+                            <Codicon name="code" />
+                        </div>
+                        <div className="building-intro-title">Building {repo?.name || 'Repository'}</div>
+                        <div className="building-intro-subtitle">
+                            {storyboard.blocks.length} blocks to explore
+                        </div>
+                        <div className="building-intro-bricks">
+                            {storyboard.blocks.slice(0, 12).map((block, i) => (
+                                <div
+                                    key={block.blockId}
+                                    className="building-intro-brick"
+                                    style={{ animationDelay: `${i * 120}ms` }}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* ---- Top Bar ---- */}
             <div className="topbar">
                 <div className="topbar-left">
@@ -568,11 +629,24 @@ export default function WorkspacePage() {
                         <div className="sidebar-header">
                             <span>Explorer</span>
                             <div className="sidebar-header-actions" aria-hidden="true">
+                                <button
+                                    className={`icon-btn ${showAllFiles ? 'icon-btn--active' : ''}`}
+                                    onClick={() => setShowAllFiles(v => !v)}
+                                    title={showAllFiles ? 'Show progressive reveal' : 'Show all files'}
+                                >
+                                    <Codicon name={showAllFiles ? 'eye' : 'eye-closed'} />
+                                </button>
                                 <button className="icon-btn">
                                     <Codicon name="ellipsis" />
                                 </button>
                             </div>
                         </div>
+                        {!showAllFiles && storyboard && revealedFiles.size > 0 && (
+                            <div className="progressive-hint">
+                                <Codicon name="layers" />
+                                <span>{revealedFiles.size} files revealed · Block {Math.max(1, activeBlockIndex + 1)}/{totalBlocks}</span>
+                            </div>
+                        )}
                         <div className="sidebar-search">
                             <input
                                 type="text"
@@ -584,12 +658,13 @@ export default function WorkspacePage() {
                         <div className="sidebar-content">
                             {fileTree ? (
                                 <FileTreeNode
-                                    node={fileTree}
+                                    node={showAllFiles ? fileTree : filterTreeByPaths(fileTree, revealedFiles)}
                                     onFileClick={openFile}
                                     onFileHover={prefetchFile}
                                     filter={treeFilter}
                                     activeFilePath={activeFile?.path}
                                     setiTheme={setiTheme}
+                                    newFiles={newlyRevealedFiles}
                                 />
                             ) : (
                                 <div className="empty-state">
@@ -799,7 +874,7 @@ export default function WorkspacePage() {
 // =============== Sub-Components ===============
 
 // ---- File Tree ----
-function FileTreeNode({ node, onFileClick, onFileHover, depth = 0, filter = '', activeFilePath, setiTheme }: {
+function FileTreeNode({ node, onFileClick, onFileHover, depth = 0, filter = '', activeFilePath, setiTheme, newFiles }: {
     node: FileNode;
     onFileClick: (path: string) => void;
     onFileHover?: (path: string) => void;
@@ -807,8 +882,25 @@ function FileTreeNode({ node, onFileClick, onFileHover, depth = 0, filter = '', 
     filter?: string;
     activeFilePath?: string;
     setiTheme?: SetiIconTheme | null;
+    newFiles?: Set<string>;
 }) {
     const [expanded, setExpanded] = useState(depth < 2);
+
+    // Auto-expand directories that contain newly revealed files
+    const hasNewDescendant = useMemo(() => {
+        if (!newFiles || newFiles.size === 0 || node.type === 'file') return false;
+        const checkNew = (n: FileNode): boolean => {
+            if (n.type === 'file' && n.path && newFiles.has(n.path)) return true;
+            return n.children?.some(c => checkNew(c)) || false;
+        };
+        return checkNew(node);
+    }, [newFiles, node]);
+
+    useEffect(() => {
+        if (hasNewDescendant && !expanded) {
+            setExpanded(true);
+        }
+    }, [hasNewDescendant]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Filter logic
     const matchesFilter = (n: FileNode): boolean => {
@@ -823,9 +915,10 @@ function FileTreeNode({ node, onFileClick, onFileHover, depth = 0, filter = '', 
 
     if (node.type === 'file') {
         const isActive = node.path === activeFilePath;
+        const isNew = node.path ? newFiles?.has(node.path) : false;
         return (
             <div
-                className={`file-tree-item ${isActive ? 'active' : ''}`}
+                className={`file-tree-item ${isActive ? 'active' : ''} ${isNew ? 'file-tree-item--new' : ''}`}
                 style={{ paddingLeft: 12 + depth * 16 }}
                 onClick={() => node.path && onFileClick(node.path)}
                 onMouseEnter={() => node.path && onFileHover?.(node.path)}
@@ -837,7 +930,7 @@ function FileTreeNode({ node, onFileClick, onFileHover, depth = 0, filter = '', 
     }
 
     return (
-        <div className="file-tree-dir">
+        <div className={`file-tree-dir ${hasNewDescendant ? 'file-tree-dir--new' : ''}`}>
             <div
                 className="file-tree-item"
                 style={{ paddingLeft: 12 + depth * 16 }}
@@ -867,6 +960,7 @@ function FileTreeNode({ node, onFileClick, onFileHover, depth = 0, filter = '', 
                                 filter={filter}
                                 activeFilePath={activeFilePath}
                                 setiTheme={setiTheme}
+                                newFiles={newFiles}
                             />
                         ))}
                 </div>
@@ -917,6 +1011,17 @@ function MermaidDiagram({ diagram, compact = false }: { diagram: string; compact
             try {
                 const mermaid = await loadMermaidApi();
                 if (cancelled) return;
+
+                // Pre-validate to avoid mermaid injecting error SVGs into the DOM
+                try {
+                    await mermaid.parse(source);
+                } catch {
+                    if (cancelled) return;
+                    setRenderError('Diagram has syntax errors');
+                    setSvg('');
+                    return;
+                }
+
                 const result = await mermaid.render(instanceIdRef.current, source);
                 if (cancelled) return;
                 setSvg(result.svg || '');
@@ -926,6 +1031,9 @@ function MermaidDiagram({ diagram, compact = false }: { diagram: string; compact
                 const message = err instanceof Error ? err.message : 'Could not render diagram';
                 setRenderError(message);
                 setSvg('');
+                // Clean up any error elements mermaid may have injected
+                const errorEl = document.getElementById(`d${instanceIdRef.current}`);
+                if (errorEl) errorEl.remove();
             }
         }
 
@@ -1264,10 +1372,44 @@ function StoryboardPanel({
 
             <div className="guided-bottom-progress">
                 <div className="guided-bottom-progress-meta">{completedCount} of {blocks.length} completed</div>
-                <div className="progress-bar block-progress-bar">
-                    <div className="progress-bar-fill" style={{ width: `${progressPercent}%` }} />
-                </div>
+                <LegoProgress
+                    blocks={blocks}
+                    activeBlock={currentBlock}
+                    completedBlocks={completedBlocks}
+                    unlockedBlockIndex={unlockedBlockIndex}
+                />
             </div>
+        </div>
+    );
+}
+
+// ---- Lego Progress Visualization ----
+function LegoProgress({ blocks, activeBlock, completedBlocks, unlockedBlockIndex }: {
+    blocks: StoryboardBlock[];
+    activeBlock: StoryboardBlock;
+    completedBlocks: Set<string>;
+    unlockedBlockIndex: number;
+}) {
+    return (
+        <div className="lego-progress">
+            {blocks.map((block, index) => {
+                const isCompleted = completedBlocks.has(block.blockId);
+                const isActive = block.blockId === activeBlock.blockId;
+                const isLocked = index > unlockedBlockIndex;
+
+                let stateClass = 'lego-brick--locked';
+                if (isCompleted) stateClass = 'lego-brick--completed';
+                else if (isActive) stateClass = 'lego-brick--active';
+                else if (!isLocked) stateClass = '';
+
+                return (
+                    <div
+                        key={block.blockId}
+                        className={`lego-brick ${stateClass}`}
+                        title={`${index + 1}. ${block.title}${isCompleted ? ' ✓' : isLocked ? ' 🔒' : ''}`}
+                    />
+                );
+            })}
         </div>
     );
 }
@@ -1817,6 +1959,32 @@ function getFileList(node: FileNode | null): string[] {
         }
     }
     return results;
+}
+
+/** Filter a FileNode tree to only include files whose paths are in the given set */
+function filterTreeByPaths(node: FileNode, paths: Set<string>): FileNode {
+    if (paths.size === 0) return { ...node, children: [] };
+
+    if (node.type === 'file') {
+        return node; // caller should only pass nodes that match
+    }
+
+    const filteredChildren: FileNode[] = [];
+    for (const child of (node.children || [])) {
+        if (child.type === 'file') {
+            if (child.path && paths.has(child.path)) {
+                filteredChildren.push(child);
+            }
+        } else {
+            // Directory: recurse and keep only if it has matching descendants
+            const filtered = filterTreeByPaths(child, paths);
+            if (filtered.children && filtered.children.length > 0) {
+                filteredChildren.push(filtered);
+            }
+        }
+    }
+
+    return { ...node, children: filteredChildren };
 }
 
 function parseResource(resource: unknown): { label: string; url?: string } {
