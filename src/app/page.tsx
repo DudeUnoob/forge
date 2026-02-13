@@ -1,66 +1,128 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+'use client';
 
-export default function Home() {
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { api } from '@/lib/api';
+import './workspace.css';
+
+export default function LandingPage() {
+  const router = useRouter();
+  const [gitUrl, setGitUrl] = useState('');
+  const [status, setStatus] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleIngest = async () => {
+    if (!gitUrl.trim()) return;
+
+    setLoading(true);
+    setError(null);
+    setStatus('Cloning repository...');
+    setProgress(10);
+
+    try {
+      // Step 1: Ingest
+      const { repoId } = await api.repos.ingest(gitUrl.trim());
+      setStatus('Repository cloned. Parsing modules...');
+      setProgress(30);
+
+      // Step 2: Parse
+      await api.repos.parse(repoId);
+      setStatus('Modules parsed. Generating storyboard...');
+      setProgress(50);
+
+      // Step 3: Generate storyboard
+      setProgress(60);
+      const { storyboardId } = await api.storyboard.generate(repoId);
+      setStatus('Storyboard generated! Launching workspace...');
+      setProgress(100);
+
+      // Navigate to workspace
+      setTimeout(() => {
+        router.push(`/workspace/${repoId}?storyboard=${storyboardId}`);
+      }, 500);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'An unknown error occurred';
+      setError(message);
+      setStatus(null);
+      setProgress(0);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.tsx file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div className="landing">
+      <div className="landing-content">
+        <div className="landing-logo">🔥</div>
+        <h1 className="landing-title">Forge</h1>
+        <p className="landing-subtitle">
+          Turn any repository into an interactive learning storyboard.
+          Understand codebases step-by-step with AI-powered explanations,
+          visual diagrams, and contextual chat.
+        </p>
+
+        <div className="landing-input-group">
+          <input
+            type="text"
+            placeholder="Paste a Git URL (e.g., https://github.com/expressjs/express)"
+            value={gitUrl}
+            onChange={(e) => setGitUrl(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleIngest()}
+            disabled={loading}
+          />
+          <button
+            className="btn-primary"
+            onClick={handleIngest}
+            disabled={loading || !gitUrl.trim()}
           >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            {loading ? '⏳ Processing...' : '🚀 Forge It'}
+          </button>
         </div>
-      </main>
+
+        {error && (
+          <div style={{ color: 'var(--error)', fontSize: '13px', marginTop: '8px' }}>
+            ⚠️ {error}
+          </div>
+        )}
+
+        {status && (
+          <div className="landing-status">
+            <div className="landing-status-text">{status}</div>
+            <div className="landing-progress">
+              <div
+                className="landing-progress-fill"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="landing-features">
+          <div className="landing-feature">
+            <div className="landing-feature-icon">🧱</div>
+            <div className="landing-feature-title">Lego Blocks</div>
+            <div className="landing-feature-desc">
+              Your codebase decomposed into ordered learning modules
+            </div>
+          </div>
+          <div className="landing-feature">
+            <div className="landing-feature-icon">💬</div>
+            <div className="landing-feature-title">Scoped AI Chat</div>
+            <div className="landing-feature-desc">
+              Ask questions grounded in the current module&apos;s context
+            </div>
+          </div>
+          <div className="landing-feature">
+            <div className="landing-feature-icon">🗺️</div>
+            <div className="landing-feature-title">Role Paths</div>
+            <div className="landing-feature-desc">
+              Frontend, backend, or infra — see what matters to you first
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
