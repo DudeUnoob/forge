@@ -16,6 +16,43 @@ import { success, error, parseBody } from '../shared/response.js';
 
 const REPOS_TABLE = process.env.REPOS_TABLE;
 const STORYBOARDS_TABLE = process.env.STORYBOARDS_TABLE;
+const MAX_PROMPT_CHARS = 150000; // Stay well within Claude Sonnet's context window
+
+/**
+ * Compress a module graph to essential structure only, removing verbose content
+ * to fit within model context limits while preserving relationships.
+ */
+function compressModuleGraph(moduleGraph) {
+    const compressed = {
+        stats: moduleGraph.stats,
+        groups: moduleGraph.groups,
+        edges: moduleGraph.edges,
+        modules: (moduleGraph.modules || []).map(mod => ({
+            path: mod.path,
+            language: mod.language,
+            imports: mod.imports,
+            exports: mod.exports,
+            // Keep only top-level symbol names, not full bodies
+            classes: (mod.classes || []).map(c => c.name || c),
+            functions: (mod.functions || []).map(f => f.name || f),
+        })),
+    };
+
+    // If still too large, further reduce by trimming modules list
+    let json = JSON.stringify(compressed);
+    if (json.length > MAX_PROMPT_CHARS * 0.6) {
+        // Drop function/class lists and keep only paths + edges
+        compressed.modules = compressed.modules.map(mod => ({
+            path: mod.path,
+            language: mod.language,
+            imports: mod.imports,
+            exports: mod.exports,
+        }));
+        json = JSON.stringify(compressed);
+    }
+
+    return compressed;
+}
 
 export const handler = async (event) => {
     try {
@@ -28,15 +65,42 @@ export const handler = async (event) => {
         // Get repo metadata
         const repo = await getItem(REPOS_TABLE, { repoId });
         if (!repo) return error('Repo not found', 404);
+
+        if (repo.storyboardId) {
+            return success({
+                storyboardId: repo.storyboardId,
+                repoId,
+                blockCount: repo.storyboardBlockCount || 0,
+                cached: true,
+            });
+        }
+
+        if (repo.status === 'GENERATING_STORYBOARD') {
+            return success({
+                repoId,
+                status: 'GENERATING_STORYBOARD',
+                inProgress: true,
+                storyboardId: repo.storyboardId || null,
+            }, 202);
+        }
+
         if (repo.status !== 'PARSED') return error('Repo must be parsed first', 400);
+
+        await updateItem(REPOS_TABLE, { repoId }, {
+            status: 'GENERATING_STORYBOARD',
+            storyboardErrorMessage: null,
+        });
 
         // Get module graph
         const moduleGraph = await getJson(`repos/${repoId}/parsed/module-graph.json`);
         if (!moduleGraph) return error('Module graph not found — parse the repo first', 400);
 
+        // Compress the module graph to fit within model context
+        const compressedGraph = compressModuleGraph(moduleGraph);
+
         // Get repo metadata (file list & commit history)
         const metadata = await getJson(`repos/${repoId}/metadata.json`);
-        const fileList = metadata?.fileList || [];
+        const fileList = (metadata?.fileList || []).slice(0, 300); // Cap file list
         const commitHistory = metadata?.commitHistory || [];
 
         const commitHistoryText = commitHistory
@@ -49,7 +113,7 @@ export const handler = async (event) => {
         const decompositionPrompt = PROMPTS.DECOMPOSE_SYSTEM;
         const blockListRaw = await invokeModel(
             decompositionPrompt.system,
-            decompositionPrompt.user(moduleGraph, fileList, commitHistoryText),
+            decompositionPrompt.user(compressedGraph, fileList, commitHistoryText),
             { maxTokens: 4096, temperature: 0.2 }
         );
 
@@ -168,9 +232,11 @@ export const handler = async (event) => {
 
         // Update repo with storyboard reference
         await updateItem(REPOS_TABLE, { repoId }, {
+            status: 'PARSED',
             storyboardId,
             storyboardBlockCount: blocks.length,
             storyboardGeneratedAt: new Date().toISOString(),
+            storyboardErrorMessage: null,
         });
 
         return success({
@@ -188,6 +254,19 @@ export const handler = async (event) => {
 
     } catch (err) {
         console.error('GenerateStoryboard error:', err);
+
+        try {
+            const repoId = event.pathParameters?.id;
+            if (repoId) {
+                await updateItem(REPOS_TABLE, { repoId }, {
+                    status: 'PARSED',
+                    storyboardErrorMessage: err.message,
+                });
+            }
+        } catch {
+            // Swallow status update errors to preserve original failure.
+        }
+
         return error(`Storyboard generation failed: ${err.message}`, 500);
     }
 };

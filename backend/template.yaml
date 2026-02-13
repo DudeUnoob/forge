@@ -43,7 +43,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/ingestRepo.handler
-      Timeout: 120
+      Timeout: 300
       MemorySize: 512
       Events:
         IngestRepo:

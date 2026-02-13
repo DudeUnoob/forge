@@ -5,7 +5,7 @@ export interface Repo {
     repoId: string;
     name: string;
     gitUrl: string;
-    status: 'CLONING' | 'UPLOADED' | 'PARSING' | 'PARSED' | 'ERROR';
+    status: 'CLONING' | 'UPLOADED' | 'PARSING' | 'GENERATING_STORYBOARD' | 'PARSED' | 'ERROR';
     commitSha?: string;
     fileCount?: number;
     moduleCount?: number;

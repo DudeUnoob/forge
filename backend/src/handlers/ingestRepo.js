@@ -92,12 +92,17 @@ export const handler = async (event) => {
             const files = [];
             await walkTree(dir, '', files);
 
-            // Upload files to S3
-            const fileList = [];
-            for (const file of files) {
-                const s3Key = `repos/${repoId}/files/${file.path}`;
-                await uploadText(s3Key, file.content);
-                fileList.push(file.path);
+            // Upload files to S3 in parallel batches
+            const fileList = files.map(f => f.path);
+            const BATCH_SIZE = 25;
+            for (let i = 0; i < files.length; i += BATCH_SIZE) {
+                const batch = files.slice(i, i + BATCH_SIZE);
+                await Promise.all(
+                    batch.map(file => {
+                        const s3Key = `repos/${repoId}/files/${file.path}`;
+                        return uploadText(s3Key, file.content);
+                    })
+                );
             }
 
             // Store metadata

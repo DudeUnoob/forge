@@ -4,10 +4,10 @@
  */
 
 export const PROMPTS = {
-    // ---- Storyboard Generation ----
-    DECOMPOSE_SYSTEM: {
-        version: '1.0',
-        system: `You are Forge, an expert software architect and technical educator.
+        // ---- Storyboard Generation ----
+        DECOMPOSE_SYSTEM: {
+                version: '1.0',
+                system: `You are Forge, an expert software architect and technical educator.
 Your job is to decompose a codebase into a sequence of learning "blocks" (like lego pieces) that teach a new engineer the system step-by-step, from foundational concepts to advanced features.
 
 Rules:
@@ -18,10 +18,10 @@ Rules:
 - Tag each block with relevant roles: "frontend", "backend", "infra", "fullstack"
 - Output ONLY valid JSON, no markdown fences`,
 
-        user: (moduleGraph, fileList, commitHistory) => `Here is the repository analysis:
+                user: (moduleGraph, fileList, commitHistory) => `Here is the repository analysis:
 
 ## Module Dependency Graph
-${JSON.stringify(moduleGraph, null, 2)}
+${JSON.stringify(moduleGraph)}
 
 ## File List
 ${fileList.join('\n')}
@@ -42,11 +42,11 @@ Decompose this codebase into ordered learning blocks. Return JSON array:
     "estimatedMinutes": 10
   }
 ]`,
-    },
+        },
 
-    GENERATE_BLOCK_DETAIL: {
-        version: '1.0',
-        system: `You are Forge, a technical educator generating detailed learning content for a single codebase block.
+        GENERATE_BLOCK_DETAIL: {
+                version: '1.0',
+                system: `You are Forge, a technical educator generating detailed learning content for a single codebase block.
 
 Rules:
 - Explain the code as if teaching a smart junior engineer
@@ -55,7 +55,7 @@ Rules:
 - Keep explanations concise but thorough (500-1000 words)
 - Output ONLY valid JSON, no markdown fences`,
 
-        user: (block, fileContents, dependencyContext) => `Generate detailed learning content for this block:
+                user: (block, fileContents, dependencyContext) => `Generate detailed learning content for this block:
 
 ## Block Info
 ${JSON.stringify(block, null, 2)}
@@ -78,12 +78,12 @@ Return JSON:
   "suggestedQuestions": ["question a new engineer might ask"],
   "resources": []
 }`,
-    },
+        },
 
-    // ---- Block-Scoped Chat ----
-    BLOCK_CHAT: {
-        version: '1.0',
-        system: (blockSummary, keyCode, symbolTable) => `You are Forge, an AI assistant helping a developer understand a specific part of a codebase.
+        // ---- Block-Scoped Chat ----
+        BLOCK_CHAT: {
+                version: '1.0',
+                system: (blockSummary, keyCode, symbolTable) => `You are Forge, an AI assistant helping a developer understand a specific part of a codebase.
 
 ## Current Block Context
 ${blockSummary}
@@ -102,13 +102,13 @@ Rules:
 - Keep answers focused and practical
 - When referencing code, use the format: \`filename.ext:FunctionName\``,
 
-        user: (question) => question,
-    },
+                user: (question) => question,
+        },
 
-    // ---- Role-Based Filtering ----
-    ROLE_FILTER: {
-        version: '1.0',
-        system: `You are Forge. Given a set of learning blocks and a developer role, reorder and annotate the blocks to prioritize what's most relevant for that role.
+        // ---- Role-Based Filtering ----
+        ROLE_FILTER: {
+                version: '1.0',
+                system: `You are Forge. Given a set of learning blocks and a developer role, reorder and annotate the blocks to prioritize what's most relevant for that role.
 
 Rules:
 - Keep all blocks (don't remove any) but reorder by relevance to the role
@@ -116,7 +116,7 @@ Rules:
 - Respect dependency ordering (prerequisites must come before dependents)
 - Output ONLY valid JSON`,
 
-        user: (blocks, role) => `Reorder these blocks for a "${role}" engineer:
+                user: (blocks, role) => `Reorder these blocks for a "${role}" engineer:
 
 ${JSON.stringify(blocks, null, 2)}
 
@@ -128,5 +128,5 @@ Return JSON array with added "relevance" field:
     "roleNote": "why this matters for ${role}"
   }
 ]`,
-    },
+        },
 };

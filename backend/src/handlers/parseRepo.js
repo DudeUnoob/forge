@@ -7,6 +7,8 @@ import { parseFiles } from '../lib/parser.js';
 import { success, error } from '../shared/response.js';
 
 const REPOS_TABLE = process.env.REPOS_TABLE;
+const FILE_DOWNLOAD_BATCH_SIZE = 30;
+const MODULE_UPLOAD_BATCH_SIZE = 40;
 
 export const handler = async (event) => {
     try {
@@ -16,6 +18,14 @@ export const handler = async (event) => {
         // Check repo exists
         const repo = await getItem(REPOS_TABLE, { repoId });
         if (!repo) return error('Repo not found', 404);
+
+        if (repo.status === 'PARSING') {
+            return success({
+                repoId,
+                status: 'PARSING',
+                inProgress: true,
+            }, 202);
+        }
 
         // Check for cached parse (same SHA)
         if (repo.status === 'PARSED' && repo.commitSha) {
@@ -33,12 +43,20 @@ export const handler = async (event) => {
 
         // Download file contents
         const files = [];
-        for (const obj of fileObjects) {
-            const relativePath = obj.key.replace(`repos/${repoId}/files/`, '');
-            if (!relativePath) continue;
-            const content = await getText(obj.key);
-            if (content) {
-                files.push({ path: relativePath, content });
+        for (let i = 0; i < fileObjects.length; i += FILE_DOWNLOAD_BATCH_SIZE) {
+            const batch = fileObjects.slice(i, i + FILE_DOWNLOAD_BATCH_SIZE);
+            const batchResults = await Promise.all(
+                batch.map(async (obj) => {
+                    const relativePath = obj.key.replace(`repos/${repoId}/files/`, '');
+                    if (!relativePath) return null;
+                    const content = await getText(obj.key);
+                    if (!content) return null;
+                    return { path: relativePath, content };
+                }),
+            );
+
+            for (const file of batchResults) {
+                if (file) files.push(file);
             }
         }
 
@@ -49,9 +67,14 @@ export const handler = async (event) => {
         await uploadJson(`repos/${repoId}/parsed/module-graph.json`, moduleGraph);
 
         // Store individual module details for quick lookup
-        for (const mod of moduleGraph.modules) {
-            const safeKey = mod.path.replace(/\//g, '__');
-            await uploadJson(`repos/${repoId}/parsed/modules/${safeKey}.json`, mod);
+        for (let i = 0; i < moduleGraph.modules.length; i += MODULE_UPLOAD_BATCH_SIZE) {
+            const batch = moduleGraph.modules.slice(i, i + MODULE_UPLOAD_BATCH_SIZE);
+            await Promise.all(
+                batch.map((mod) => {
+                    const safeKey = mod.path.replace(/\//g, '__');
+                    return uploadJson(`repos/${repoId}/parsed/modules/${safeKey}.json`, mod);
+                }),
+            );
         }
 
         // Update repo status
