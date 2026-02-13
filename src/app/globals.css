@@ -1,0 +1,465 @@
+/* ====================================
+   FORGE — VS Code Dark Theme
+   Design System & Global Styles
+   ==================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* ---- Core palette (Catppuccin Mocha inspired) ---- */
+  --bg-base: #1e1e2e;
+  --bg-surface: #181825;
+  --bg-overlay: #11111b;
+  --bg-mantle: #1a1a2e;
+  --bg-crust: #131320;
+  --bg-highlight: #262640;
+  --bg-hover: #2a2a42;
+  --bg-active: #313150;
+
+  /* Sidebar / panels */
+  --sidebar-bg: #181825;
+  --panel-bg: #1e1e2e;
+  --panel-border: #313150;
+  --tab-active-bg: #1e1e2e;
+  --tab-inactive-bg: #181825;
+
+  /* Text */
+  --text-primary: #cdd6f4;
+  --text-secondary: #a6adc8;
+  --text-muted: #6c7086;
+  --text-inverse: #11111b;
+
+  /* Accent colors */
+  --accent: #89b4fa;
+  --accent-hover: #74a8fc;
+  --accent-muted: rgba(137, 180, 250, 0.15);
+  --accent-glow: rgba(137, 180, 250, 0.3);
+
+  /* Status colors */
+  --success: #a6e3a1;
+  --success-bg: rgba(166, 227, 161, 0.1);
+  --warning: #f9e2af;
+  --warning-bg: rgba(249, 226, 175, 0.1);
+  --error: #f38ba8;
+  --error-bg: rgba(243, 139, 168, 0.1);
+  --info: #89dceb;
+
+  /* Role colors */
+  --role-frontend: #f5c2e7;
+  --role-backend: #89b4fa;
+  --role-infra: #a6e3a1;
+  --role-fullstack: #cba6f7;
+
+  /* Syntax highlighting */
+  --syntax-keyword: #cba6f7;
+  --syntax-string: #a6e3a1;
+  --syntax-number: #fab387;
+  --syntax-comment: #6c7086;
+  --syntax-function: #89b4fa;
+  --syntax-variable: #cdd6f4;
+  --syntax-type: #f9e2af;
+  --syntax-operator: #89dceb;
+
+  /* Typography */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+
+  /* Sizing */
+  --activity-bar-width: 48px;
+  --sidebar-width: 260px;
+  --panel-width: 380px;
+  --topbar-height: 40px;
+  --statusbar-height: 24px;
+  --tab-height: 36px;
+  --breadcrumb-height: 26px;
+
+  /* Borders & Radius */
+  --border-radius: 6px;
+  --border-radius-sm: 4px;
+  --border-radius-lg: 8px;
+
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-normal: 250ms ease;
+  --transition-slow: 400ms ease;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-glow: 0 0 20px var(--accent-glow);
+}
+
+/* ---- Reset ---- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ---- Scrollbar (VS Code style) ---- */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ---- Selection ---- */
+::selection {
+  background: var(--accent-muted);
+  color: var(--text-primary);
+}
+
+/* ---- Links ---- */
+a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+a:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+
+/* ---- Code ---- */
+code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--bg-highlight);
+  padding: 2px 6px;
+  border-radius: var(--border-radius-sm);
+  color: var(--accent);
+}
+
+pre {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--border-radius);
+  padding: 12px 16px;
+  overflow-x: auto;
+  line-height: 1.6;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+  color: var(--text-primary);
+}
+
+/* ---- Buttons ---- */
+button {
+  font-family: var(--font-sans);
+  cursor: pointer;
+  border: none;
+  outline: none;
+  transition: all var(--transition-fast);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--text-inverse);
+  padding: 8px 16px;
+  border-radius: var(--border-radius);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+  box-shadow: var(--shadow-glow);
+}
+
+.btn-primary:active {
+  transform: scale(0.97);
+}
+
+.btn-secondary {
+  background: var(--bg-highlight);
+  color: var(--text-primary);
+  padding: 8px 16px;
+  border-radius: var(--border-radius);
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--panel-border);
+}
+
+.btn-secondary:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-muted);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 4px 8px;
+  border-radius: var(--border-radius-sm);
+  font-size: 12px;
+}
+
+.btn-ghost:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* ---- Inputs ---- */
+input,
+textarea {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  background: var(--bg-surface);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--border-radius);
+  padding: 8px 12px;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color var(--transition-fast);
+  width: 100%;
+}
+
+input:focus,
+textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-muted);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+}
+
+/* ---- Badges / Tags ---- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.badge-frontend {
+  background: rgba(245, 194, 231, 0.15);
+  color: var(--role-frontend);
+}
+
+.badge-backend {
+  background: rgba(137, 180, 250, 0.15);
+  color: var(--role-backend);
+}
+
+.badge-infra {
+  background: rgba(166, 227, 161, 0.15);
+  color: var(--role-infra);
+}
+
+.badge-fullstack {
+  background: rgba(203, 166, 247, 0.15);
+  color: var(--role-fullstack);
+}
+
+.badge-success {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.badge-warning {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.badge-error {
+  background: var(--error-bg);
+  color: var(--error);
+}
+
+/* ---- Keyframe Animations ---- */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+@keyframes glow {
+
+  0%,
+  100% {
+    box-shadow: 0 0 5px var(--accent-glow);
+  }
+
+  50% {
+    box-shadow: 0 0 20px var(--accent-glow);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease forwards;
+}
+
+.animate-slide-in {
+  animation: slideInRight 0.3s ease forwards;
+}
+
+/* ---- Skeleton loading ---- */
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-highlight) 25%, var(--bg-hover) 50%, var(--bg-highlight) 75%);
+  background-size: 200px 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--border-radius-sm);
+}
+
+/* ---- Tooltip ---- */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-overlay);
+  color: var(--text-primary);
+  padding: 4px 8px;
+  border-radius: var(--border-radius-sm);
+  font-size: 11px;
+  white-space: nowrap;
+  z-index: 1000;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--panel-border);
+}
+
+/* ---- Markdown content ---- */
+.markdown-content h1 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 16px 0 8px;
+  color: var(--text-primary);
+}
+
+.markdown-content h2 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 14px 0 6px;
+  color: var(--text-primary);
+}
+
+.markdown-content h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 12px 0 4px;
+  color: var(--text-primary);
+}
+
+.markdown-content p {
+  margin: 8px 0;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+
+.markdown-content li {
+  margin: 4px 0;
+  color: var(--text-secondary);
+}
+
+.markdown-content blockquote {
+  margin: 12px 0;
+  padding: 8px 16px;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-muted);
+  border-radius: 0 var(--border-radius-sm) var(--border-radius-sm) 0;
+}
+
+.markdown-content strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.markdown-content em {
+  color: var(--text-secondary);
+  font-style: italic;
+}

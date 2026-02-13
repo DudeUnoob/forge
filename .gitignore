@@ -133,8 +133,3 @@ my-skills/
 *.bak
 *.orig
 .eslintcache
-
-
-my-skills/node_modules/
-my-skills/.cache/
-my-skills/
