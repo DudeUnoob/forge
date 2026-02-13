@@ -1,0 +1,288 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: Forge - AI Codebase Onboarding Platform
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Timeout: 30
+    MemorySize: 256
+    Environment:
+      Variables:
+        REPOS_TABLE: !Ref ReposTable
+        STORYBOARDS_TABLE: !Ref StoryboardsTable
+        CHAT_TABLE: !Ref ChatHistoryTable
+        PROGRESS_TABLE: !Ref ProgressTable
+        ARTIFACTS_BUCKET: !Ref ForgeArtifactsBucket
+        BEDROCK_MODEL_ID: anthropic.claude-3-sonnet-20240229-v1:0
+    Architectures:
+      - x86_64
+
+Resources:
+  # ----- API Gateway -----
+  ForgeApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: prod
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        AllowHeaders:
+          - "*"
+        MaxAge: 86400
+
+  # ----- Lambda Functions -----
+  IngestRepoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/ingestRepo.handler
+      Timeout: 120
+      MemorySize: 512
+      Events:
+        IngestRepo:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ForgeApi
+            Path: /repos
+            Method: POST
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ReposTable
+        - S3CrudPolicy:
+            BucketName: !Ref ForgeArtifactsBucket
+
+  GetRepoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/getRepo.handler
+      Events:
+        GetRepo:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ForgeApi
+            Path: /repos/{id}
+            Method: GET
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref ReposTable
+
+  ParseRepoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/parseRepo.handler
+      Timeout: 300
+      MemorySize: 1024
+      Events:
+        ParseRepo:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ForgeApi
+            Path: /repos/{id}/parse
+            Method: POST
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ReposTable
+        - S3CrudPolicy:
+            BucketName: !Ref ForgeArtifactsBucket
+
+  ListFilesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/listFiles.handler
+      Events:
+        ListFiles:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ForgeApi
+            Path: /repos/{id}/files
+            Method: GET
+        GetFile:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ForgeApi
+            Path: /repos/{id}/files/{path+}
+            Method: GET
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref ForgeArtifactsBucket
+        - DynamoDBReadPolicy:
+            TableName: !Ref ReposTable
+
+  GenerateStoryboardFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/generateStoryboard.handler
+      Timeout: 300
+      MemorySize: 512
+      Events:
+        GenerateStoryboard:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ForgeApi
+            Path: /repos/{id}/storyboard
+            Method: POST
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ReposTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref StoryboardsTable
+        - S3CrudPolicy:
+            BucketName: !Ref ForgeArtifactsBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+                - bedrock:InvokeModelWithResponseStream
+              Resource: "*"
+
+  GetStoryboardFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/getStoryboard.handler
+      Events:
+        GetStoryboard:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ForgeApi
+            Path: /storyboards/{id}
+            Method: GET
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref StoryboardsTable
+        - S3ReadPolicy:
+            BucketName: !Ref ForgeArtifactsBucket
+
+  ChatFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/chat.handler
+      Timeout: 60
+      MemorySize: 512
+      Events:
+        Chat:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ForgeApi
+            Path: /storyboards/{id}/blocks/{blockId}/chat
+            Method: POST
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ChatHistoryTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref StoryboardsTable
+        - S3ReadPolicy:
+            BucketName: !Ref ForgeArtifactsBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+                - bedrock:InvokeModelWithResponseStream
+              Resource: "*"
+
+  ProgressFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/progress.handler
+      Events:
+        GetProgress:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ForgeApi
+            Path: /progress/{userId}
+            Method: GET
+        UpdateProgress:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ForgeApi
+            Path: /progress/{userId}
+            Method: POST
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ProgressTable
+
+  # ----- DynamoDB Tables -----
+  ReposTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: forge-repos
+      AttributeDefinitions:
+        - AttributeName: repoId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: repoId
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+  StoryboardsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: forge-storyboards
+      AttributeDefinitions:
+        - AttributeName: storyboardId
+          AttributeType: S
+        - AttributeName: blockId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: storyboardId
+          KeyType: HASH
+        - AttributeName: blockId
+          KeyType: RANGE
+      BillingMode: PAY_PER_REQUEST
+
+  ChatHistoryTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: forge-chat-history
+      AttributeDefinitions:
+        - AttributeName: chatKey
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+      KeySchema:
+        - AttributeName: chatKey
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      BillingMode: PAY_PER_REQUEST
+
+  ProgressTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: forge-progress
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: repoId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: repoId
+          KeyType: RANGE
+      BillingMode: PAY_PER_REQUEST
+
+  # ----- S3 Bucket -----
+  ForgeArtifactsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub forge-artifacts-${AWS::AccountId}-${AWS::Region}
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins: ["*"]
+            AllowedMethods: [GET, PUT]
+            AllowedHeaders: ["*"]
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${ForgeApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+  ArtifactsBucket:
+    Description: S3 bucket for artifacts
+    Value: !Ref ForgeArtifactsBucket

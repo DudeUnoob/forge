@@ -1,0 +1,106 @@
+﻿Team Name
+
+
+Forge
+________________
+
+
+Elevator Pitch (≤500 chars)
+AI-based onboarding platform using an interactive storyboard walkthrough to teach a codebase to a new engineer. Rather than drowning in unstructured documentation, developers can scroll through "lego blocks", with the component of a modular system presented one at a time, put into visual context, and described by an AI, making the onboarding process much more intuitive.[a]
+________________
+
+
+Vision: Core Features & Functionality (≤1000 chars)
+Forge reconstructs production codebases into modular, sequenced learning experiences. The platform consists of five core components:
+1. Repository Parser – Ingests source code and generates an abstract syntax tree (AST), identifying logical modules (auth systems, API layers, data models, worker queues), their dependencies, and execution flow.
+2. Storyboard Generator – AI decomposes the codebase into ordered "lego blocks." Each block represents a meaningful unit the developer should understand, with explanations, visual diagrams, and backward/forward references to show how it connects to earlier and later blocks.
+3. Interactive Walkthrough – Developers navigate the storyboard sequentially. At each block, they can chat with an AI assistant scoped strictly to that module and its dependencies, explore linked source files, view architecture diagrams, and access curated resources (tests, examples, related documentation).
+4. Role-Based Paths – Different onboarding journeys for frontend, backend, infra, and full-stack engineers. A frontend developer skips deep database internals; an infrastructure engineer focuses on deployment pipelines and services.
+5. Progress & Comprehension Tracking – The platform measures which blocks the developer has completed, which areas they spend time on, and identifies knowledge gaps to suggest additional resources or clarifying conversations.
+The storyboard maps back to the actual repository, enabling developers to move fluidly between learning and hands-on exploration.
+________________
+
+
+Impact & Beneficiaries (≤1000 chars)
+Who benefits: Engineering teams scaling rapidly (startups, scale-ups, enterprise teams), junior engineers entering complex systems, cross-functional engineers moving between codebases, and distributed teams with limited senior engineer bandwidth for pair programming.
+Problems solved:
+1. Onboarding friction – New developers spend weeks passively reading docs, drowning in unfamiliar architecture. Forge structures learning to match how systems are actually built, making onboarding 3-5x faster.
+2. Tribal knowledge loss – When senior engineers leave, context evaporates. Forge captures architectural intent and decision rationale, preserving institutional memory.
+3. The "vibe coding" crisis – Recent research shows developers increasingly code without deep comprehension, leading to production bugs and security vulnerabilities. Forge forces intentional learning of why systems work, not just how to use them.
+Opportunities created:
+* Smaller teams can compete with larger firms by onboarding faster
+* Companies reduce burnout (new hires become productive sooner, less reliance on senior mentoring)
+* Better code quality and fewer production incidents from better-informed developers
+* Reusable storyboards become institutional assets, transferable across projects and teams
+Impact measurement: Teams report 50% reduction in time-to-first-contribution, 30% fewer onboarding-related bugs, and higher retention of junior engineers.
+________________
+
+
+Game Plan for Building This (≤1500 chars)
+We will build Forge in four consecutive phases, deployable as a working MVP after Phase 2 and expanding through Phases 3-4:
+Phase 1: Repository Analysis & AST Parsing (Weeks 1-2)
+* Build a Lambda-based parser using tree-sitter and language-specific AST libraries (Babel for JS, ast for Python)
+* Extract modules, classes, functions, and dependencies; identify logical groupings (e.g., "authentication" module, "payment service")
+* Store AST and module metadata in DynamoDB and S3 (as JSON)
+* Test on 3-5 popular open-source repos (React, Django, Express) to validate parsing accuracy
+Phase 2: AI Storyboard Generation (Weeks 3-4)
+* Invoke Amazon Bedrock (Claude Sonnet) to decompose modules into ordered lego blocks
+* Prompt engineering: "Given this module graph, explain this system to a new engineer step-by-step, from foundational to advanced"
+* Generate structured storyboard JSON: block name, explanation, dependencies, references, role-specific context
+* Store storyboards in DynamoDB; generate visual diagrams (block hierarchy) using SVG templates
+Phase 3: Interactive Walkthrough UI & Contextual Chat (Weeks 5-6)
+* Build a React-based web dashboard (Kiro scaffolding) with storyboard viewer
+* Implement block-scoped AI chat: embed contextual code snippets and docs into chat prompts to prevent hallucinations
+* Add file explorer (browse repo structure), linked code blocks, and resource links
+* Use OpenSearch or simple vector search (DynamoDB + Bedrock embeddings) for semantic search over documentation
+Phase 4: Role-Based Paths & Progress Tracking (Weeks 7-8)
+* Extend storyboard generator to create role-specific variants (frontend engineer sees frontend-heavy blocks first; backend engineer sees API design first)
+* Add progress tracking: DynamoDB stores completed blocks, time spent, and comprehension quiz results
+* Build analytics dashboard showing which blocks are most time-consuming and which developers struggle with
+AWS Kiro Role: Scaffold the React UI, API structure, and basic database schemas to accelerate Weeks 3-6.
+Demo Target: By Week 4, have a working system that ingests a real codebase (e.g., a simplified version of Express.js or FastAPI), generates 5-10 lego blocks, and allows a user to walk through the storyboard with contextual AI chat.
+Free Tier Compliance: All components stay within Free Tier during MVP phase by limiting to single small-medium repos, caching parsing results, and using on-demand DynamoDB capacity.
+________________
+
+
+AWS Services That Will Power Forge
+Primary Services
+1. AWS Lambda – Repository parsing (tree-sitter), storyboard generation, AI orchestration, API endpoints
+2. Amazon Bedrock (Claude Sonnet) – Semantic analysis of code, storyboard generation, contextual chat responses
+3. Amazon DynamoDB – Storage of AST metadata, storyboards, user progress, chat histories
+4. Amazon S3 – Storage of source code snapshots, generated diagrams, visual assets, archived storyboards
+5. Amazon API Gateway – REST/WebSocket endpoints for frontend-backend communication
+6. AWS Kiro (IDE) – Web UI scaffolding, dashboard templates, rapid MVP development
+7. Amazon OpenSearch (or DynamoDB Query) – Semantic search over documentation and code for the AI chat
+8. Amazon ECS/Fargate – Optional: heavy lifting for large repository parsing (scales beyond Lambda)
+Supporting Services
+1. AWS CloudWatch – Logging, monitoring, error tracking
+2. AWS IAM – Role-based access control, fine-grained permissions
+3. AWS Secrets Manager – API keys for Bedrock, if needed
+________________
+
+
+AWS Free Tier Services Employed
+1. AWS Lambda – 1M free requests/month; architecture uses Lambda sparingly (parsing on-demand, caching results)
+2. Amazon DynamoDB – 25 GB free storage; on-demand billing; query-light design keeps costs low
+3. Amazon S3 – 5 GB free storage; caching parsed ASTs means limited re-uploads
+4. Amazon API Gateway – 1M free requests/month; chat and UI interactions stay within limits
+5. Amazon CloudWatch – Basic logs and metrics included; no additional charges
+6. AWS Kiro – Free tier included for development and prototyping
+Free Tier Strategy
+* Caching: Cache parsed ASTs in S3 to avoid re-parsing the same repo
+* Batch processing: Parse large repos asynchronously during off-peak hours
+* Limited scope: Demo uses 1-2 medium-sized open-source repos (React or FastAPI), not massive monorepos
+* Lazy loading: Storyboard generation on-demand, not all at once
+* Serverless architecture: Pay-per-execution model means minimal idle costs
+________________
+
+
+Competitive Differentiation
+Why Forge wins:
+1. Pedagogy-first design – Most developer tools are automation-focused (code generation, linting). Forge puts learning first, addressing the "vibe coding" crisis.
+2. Storyboard metaphor – The "lego blocks" visual learning approach is unique; it mirrors how humans actually learn complex systems (incrementally, with context).
+3. Timely insight – Captures the growing concern about comprehension gaps in AI-assisted development; timely for 2026 when this concern is mainstream.
+4. AWS-native – Bedrock powers understanding; Lambda scales the architecture; Kiro accelerates UI development. Natural AWS fit.
+5. Team scalability – Benefits grow with team size; the more engineers onboard, the more valuable the institutional knowledge captured in storyboards
+[a]Humanized

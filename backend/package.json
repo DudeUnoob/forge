@@ -1,0 +1,28 @@
+{
+    "name": "forge-backend",
+    "version": "1.0.0",
+    "description": "Forge backend - AWS Lambda + API Gateway + DynamoDB + S3 + Bedrock",
+    "type": "module",
+    "scripts": {
+        "test": "node --experimental-vm-modules node_modules/.bin/jest",
+        "lint": "eslint src/",
+        "build": "echo 'No build step needed for Lambda Node.js'",
+        "deploy": "sam build && sam deploy",
+        "deploy:guided": "sam build && sam deploy --guided",
+        "local": "sam local start-api --port 3001 --env-vars env.local.json"
+    },
+    "dependencies": {
+        "@aws-sdk/client-dynamodb": "^3.500.0",
+        "@aws-sdk/lib-dynamodb": "^3.500.0",
+        "@aws-sdk/client-s3": "^3.500.0",
+        "@aws-sdk/client-bedrock-runtime": "^3.500.0",
+        "isomorphic-git": "^1.25.0",
+        "web-tree-sitter": "^0.22.0",
+        "uuid": "^9.0.0"
+    },
+    "devDependencies": {
+        "jest": "^29.7.0",
+        "@types/jest": "^29.5.0",
+        "eslint": "^8.50.0"
+    }
+}

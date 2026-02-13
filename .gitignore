@@ -1,0 +1,140 @@
+# ========================================
+# Dependencies
+# ========================================
+node_modules/
+.pnp
+.pnp.js
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# ========================================
+# Environment Variables & Secrets
+# ========================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+env.local.json
+*.env
+.aws/
+.aws-credentials
+credentials
+
+# ========================================
+# AWS SAM & Lambda
+# ========================================
+.aws-sam/
+samconfig.toml
+.aws-sam-build/
+packaged.yaml
+
+# ========================================
+# Next.js (Frontend)
+# ========================================
+.next/
+out/
+.vercel
+.turbo
+next-env.d.ts
+
+# ========================================
+# Build Outputs
+# ========================================
+build/
+dist/
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+*.js.map
+
+# ========================================
+# Testing
+# ========================================
+coverage/
+.nyc_output
+*.test.js.snap
+
+# ========================================
+# Logs
+# ========================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# ========================================
+# OS Files
+# ========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.swp
+*.swo
+*~
+desktop.ini
+
+# ========================================
+# IDE & Editors
+# ========================================
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.project
+.classpath
+.settings/
+*.sublime-*
+
+# ========================================
+# Temporary Files
+# ========================================
+*.tmp
+*.temp
+.cache/
+.parcel-cache/
+
+# ========================================
+# Python (if applicable)
+# ========================================
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+ENV/
+env/
+.venv
+
+# ========================================
+# Application Specific
+# ========================================
+# Exclude third-party skills repository
+my-skills/
+
+# ========================================
+# Misc
+# ========================================
+*.bak
+*.orig
+.eslintcache
+
+
+my-skills/node_modules/
+my-skills/.cache/
+my-skills/
