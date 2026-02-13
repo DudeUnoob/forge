@@ -2,6 +2,13 @@
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
+function encodeFilePath(path: string): string {
+    return path
+        .split('/')
+        .map(segment => encodeURIComponent(segment))
+        .join('/');
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const url = `${API_BASE}${path}`;
     console.log(`[Forge API] ${options.method || 'GET'} ${url}`);
@@ -51,7 +58,13 @@ export const api = {
             request<{ repoId: string; tree: import('./types').FileNode }>(`/repos/${repoId}/files`),
 
         fileContent: (repoId: string, path: string) =>
-            request<{ path: string; content: string }>(`/repos/${repoId}/files/${path}`),
+            request<{ path: string; content: string }>(`/repos/${repoId}/files/${encodeFilePath(path)}`),
+
+        fileContents: (repoId: string, paths: string[]) =>
+            request<{ repoId: string; files: { path: string; content: string }[] }>(`/repos/${repoId}/files/batch`, {
+                method: 'POST',
+                body: JSON.stringify({ paths }),
+            }),
     },
 
     storyboard: {

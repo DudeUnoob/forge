@@ -2,6 +2,14 @@
    Workspace Layout - VS Code Inspired
    ==================================== */
 
+@font-face {
+    font-family: 'seti';
+    src: url('https://cdn.jsdelivr.net/gh/microsoft/vscode@main/extensions/theme-seti/icons/seti.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: block;
+}
+
 .workspace {
     --bg-base: #1e1e1e;
     --bg-surface: #252526;
@@ -69,11 +77,12 @@
     color: var(--text-primary);
 }
 
-.app-icon {
+.codicon {
     width: 14px;
     height: 14px;
     display: inline-flex;
     flex-shrink: 0;
+    line-height: 1;
 }
 
 /* ---- Top Bar ---- */
@@ -142,7 +151,7 @@
     color: var(--text-secondary);
 }
 
-.topbar-brand .app-icon {
+.topbar-brand .codicon {
     color: var(--accent);
 }
 
@@ -202,10 +211,10 @@
     border-left: 2px solid transparent;
 }
 
-.activity-bar-icon .app-icon {
+.activity-bar-icon .codicon {
     width: 20px;
     height: 20px;
-    stroke-width: 1.45;
+    font-size: 20px;
 }
 
 .activity-bar-icon:hover {
@@ -348,19 +357,10 @@
     color: #8f8f8f;
 }
 
-.file-tree-item .icon.tree-chevron .app-icon {
+.file-tree-item .icon.tree-chevron .codicon {
     width: 12px;
     height: 12px;
-    stroke-width: 1.8;
-}
-
-.file-tree-item .icon.tree-folder {
-    color: #dcb67a;
-}
-
-.file-tree-item .icon.tree-folder .app-icon {
-    width: 14px;
-    height: 14px;
+    font-size: 12px;
 }
 
 .file-tree-item .name {
@@ -375,23 +375,23 @@
     display: block;
 }
 
-.file-icon {
+.seti-icon {
     width: 16px;
     height: 16px;
-    border-radius: 3px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 8px;
-    font-weight: 700;
+    font-family: 'seti';
+    font-size: 16px;
     line-height: 1;
-    letter-spacing: 0.1px;
-    color: var(--file-icon-color);
-    background: var(--file-icon-bg);
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    font-style: normal;
+    font-weight: normal;
+    color: #c5c5c5;
     flex-shrink: 0;
-    font-family: var(--font-mono);
-    text-transform: uppercase;
+}
+
+.tree-folder-icon {
+    color: #dcb67a;
 }
 
 .tree-file-icon {
@@ -405,7 +405,7 @@
 .command-file-icon {
     width: 14px;
     height: 14px;
-    font-size: 7px;
+    font-size: 14px;
 }
 
 /* ---- Editor ---- */
@@ -494,10 +494,10 @@
     opacity: 1;
 }
 
-.editor-tab-close .app-icon {
+.editor-tab-close .codicon {
     width: 11px;
     height: 11px;
-    stroke-width: 2;
+    font-size: 11px;
 }
 
 .editor-tab-close:hover {
@@ -529,9 +529,10 @@
     opacity: 0.65;
 }
 
-.breadcrumb-sep .app-icon {
+.breadcrumb-sep .codicon {
     width: 10px;
     height: 10px;
+    font-size: 10px;
 }
 
 .breadcrumb-item {
@@ -674,10 +675,10 @@
     color: var(--accent);
 }
 
-.editor-welcome-logo .app-icon {
+.editor-welcome-logo .codicon {
     width: 30px;
     height: 30px;
-    stroke-width: 1.2;
+    font-size: 30px;
 }
 
 .editor-welcome h2 {
@@ -737,9 +738,10 @@
     display: inline-flex;
 }
 
-.error-banner-icon .app-icon {
+.error-banner-icon .codicon {
     width: 14px;
     height: 14px;
+    font-size: 14px;
 }
 
 .error-banner-text {
@@ -762,10 +764,10 @@
     background: rgba(255, 255, 255, 0.1);
 }
 
-.error-banner-dismiss .app-icon {
+.error-banner-dismiss .codicon {
     width: 11px;
     height: 11px;
-    stroke-width: 2;
+    font-size: 11px;
 }
 
 /* ---- Secondary panel ---- */
@@ -797,9 +799,10 @@
     border-bottom: 1px solid transparent;
 }
 
-.panel-tab .app-icon {
+.panel-tab .codicon {
     width: 13px;
     height: 13px;
+    font-size: 13px;
 }
 
 .panel-tab:hover {
@@ -1040,10 +1043,10 @@
     cursor: not-allowed;
 }
 
-.chat-send-btn .app-icon {
+.chat-send-btn .codicon {
     width: 12px;
     height: 12px;
-    stroke-width: 2;
+    font-size: 12px;
 }
 
 /* ---- Status bar ---- */
@@ -1075,9 +1078,10 @@
     white-space: nowrap;
 }
 
-.statusbar-item .app-icon {
+.statusbar-item .codicon {
     width: 12px;
     height: 12px;
+    font-size: 12px;
 }
 
 .progress-bar {
@@ -1226,9 +1230,10 @@
     color: #bdbdbd;
 }
 
-.command-palette-item-icon .app-icon {
+.command-palette-item-icon .codicon {
     width: 13px;
     height: 13px;
+    font-size: 13px;
 }
 
 .command-palette-item-label {
@@ -1284,10 +1289,10 @@
     opacity: 0.9;
 }
 
-.empty-state-icon .app-icon {
+.empty-state-icon .codicon {
     width: 26px;
     height: 26px;
-    stroke-width: 1.35;
+    font-size: 26px;
 }
 
 .empty-state-text {

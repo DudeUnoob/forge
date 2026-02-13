@@ -24,6 +24,11 @@ type IconName =
     | 'spark'
     | 'vscode';
 
+const FILE_CONTENT_CACHE_LIMIT = 80;
+const PREFETCH_BATCH_SIZE = 20;
+const PREFETCH_TREE_SAMPLE_SIZE = 16;
+const PREFETCH_BLOCK_SAMPLE_SIZE = 12;
+
 // =============== Main Workspace Component ===============
 
 export default function WorkspacePage() {
@@ -58,6 +63,9 @@ export default function WorkspacePage() {
     const [showCommandPalette, setShowCommandPalette] = useState(false);
     const [treeFilter, setTreeFilter] = useState('');
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const fileContentCacheRef = useRef<Map<string, string>>(new Map());
+    const inFlightFileRequestsRef = useRef<Map<string, Promise<string>>>(new Map());
+    const prefetchedPathsRef = useRef<Set<string>>(new Set());
 
     // ---- Add keyboard shortcuts ----
     useEffect(() => {
@@ -80,6 +88,101 @@ export default function WorkspacePage() {
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
+
+    // Reset caches when switching repositories
+    useEffect(() => {
+        fileContentCacheRef.current.clear();
+        inFlightFileRequestsRef.current.clear();
+        prefetchedPathsRef.current.clear();
+    }, [repoId]);
+
+    const cacheFileContent = useCallback((path: string, content: string) => {
+        const cache = fileContentCacheRef.current;
+        if (cache.has(path)) {
+            cache.delete(path);
+        }
+        cache.set(path, content);
+
+        while (cache.size > FILE_CONTENT_CACHE_LIMIT) {
+            const oldest = cache.keys().next().value;
+            if (!oldest) break;
+            cache.delete(oldest);
+        }
+    }, []);
+
+    const fetchFileContent = useCallback(async (path: string): Promise<string> => {
+        const cache = fileContentCacheRef.current;
+        if (cache.has(path)) {
+            const cached = cache.get(path) as string;
+            cache.delete(path);
+            cache.set(path, cached);
+            return cached;
+        }
+
+        const pending = inFlightFileRequestsRef.current.get(path);
+        if (pending) return pending;
+
+        const request = api.repos.fileContent(repoId, path)
+            .then(({ content }) => {
+                cacheFileContent(path, content);
+                return content;
+            })
+            .finally(() => {
+                inFlightFileRequestsRef.current.delete(path);
+            });
+
+        inFlightFileRequestsRef.current.set(path, request);
+        return request;
+    }, [cacheFileContent, repoId]);
+
+    const prefetchFiles = useCallback(async (paths: string[]) => {
+        const uniqueCandidates = [...new Set(
+            paths
+                .map(path => path?.trim())
+                .filter((path): path is string => Boolean(path)),
+        )];
+
+        const pathsToPrefetch = uniqueCandidates
+            .filter((path) => {
+                if (fileContentCacheRef.current.has(path)) return false;
+                if (inFlightFileRequestsRef.current.has(path)) return false;
+                if (prefetchedPathsRef.current.has(path)) return false;
+                return true;
+            })
+            .slice(0, PREFETCH_BATCH_SIZE);
+
+        if (pathsToPrefetch.length === 0) return;
+        pathsToPrefetch.forEach(path => prefetchedPathsRef.current.add(path));
+
+        try {
+            const { files } = await api.repos.fileContents(repoId, pathsToPrefetch);
+            const fetched = new Set<string>();
+
+            for (const file of files) {
+                cacheFileContent(file.path, file.content);
+                fetched.add(file.path);
+            }
+
+            for (const path of pathsToPrefetch) {
+                if (!fetched.has(path)) {
+                    prefetchedPathsRef.current.delete(path);
+                }
+            }
+        } catch {
+            for (const path of pathsToPrefetch) {
+                prefetchedPathsRef.current.delete(path);
+            }
+
+            // Fallback for environments where batch endpoint is not deployed yet.
+            await Promise.allSettled(
+                pathsToPrefetch.slice(0, 4).map(path => fetchFileContent(path)),
+            );
+        }
+    }, [cacheFileContent, fetchFileContent, repoId]);
+
+    const prefetchFile = useCallback((path: string) => {
+        void prefetchFiles([path]);
+    }, [prefetchFiles]);
 
     // ---- Fetch data on mount ----
     useEffect(() => {
@@ -124,6 +227,24 @@ export default function WorkspacePage() {
         load();
     }, [repoId, storyboardId]);
 
+    // Warm cache for likely next-open files
+    useEffect(() => {
+        if (!fileTree) return;
+
+        const treeCandidates = getFileList(fileTree).slice(0, PREFETCH_TREE_SAMPLE_SIZE);
+        const storyboardCandidates = (storyboard?.blocks || [])
+            .flatMap(block => block.keyFiles || [])
+            .slice(0, PREFETCH_BLOCK_SAMPLE_SIZE);
+
+        void prefetchFiles([...storyboardCandidates, ...treeCandidates]);
+    }, [fileTree, storyboard, prefetchFiles]);
+
+    // Prefetch key files whenever active block changes
+    useEffect(() => {
+        if (!activeBlock?.keyFiles?.length) return;
+        void prefetchFiles(activeBlock.keyFiles.slice(0, PREFETCH_BLOCK_SAMPLE_SIZE));
+    }, [activeBlock, prefetchFiles]);
+
     // ---- Open a file ----
     const openFile = useCallback(async (path: string) => {
         const existing = openFiles.findIndex(f => f.path === path);
@@ -133,9 +254,14 @@ export default function WorkspacePage() {
         }
 
         try {
-            const data = await api.repos.fileContent(repoId, path);
+            const content = await fetchFileContent(path);
             setOpenFiles(prev => {
-                const next = [...prev, { path, content: data.content }];
+                const alreadyOpen = prev.findIndex(file => file.path === path);
+                if (alreadyOpen >= 0) {
+                    setActiveFileIndex(alreadyOpen);
+                    return prev;
+                }
+                const next = [...prev, { path, content }];
                 setActiveFileIndex(next.length - 1);
                 return next;
             });
@@ -143,7 +269,7 @@ export default function WorkspacePage() {
             console.error('Failed to open file:', err);
             setErrors(prev => [...prev, `Could not open ${path}`]);
         }
-    }, [repoId, openFiles]);
+    }, [openFiles, fetchFileContent]);
 
     // ---- Close a file tab ----
     const closeFile = useCallback((index: number) => {
@@ -193,9 +319,10 @@ export default function WorkspacePage() {
         setChatMessages([]);
         setHighlightedLines(new Set());
         if (block.keyFiles?.length > 0) {
+            void prefetchFiles(block.keyFiles.slice(0, PREFETCH_BLOCK_SAMPLE_SIZE));
             openFile(block.keyFiles[0]);
         }
-    }, [openFile]);
+    }, [openFile, prefetchFiles]);
 
     // ---- Dismiss error ----
     const dismissError = useCallback((index: number) => {
@@ -325,6 +452,7 @@ export default function WorkspacePage() {
                                 <FileTreeNode
                                     node={fileTree}
                                     onFileClick={openFile}
+                                    onFileHover={prefetchFile}
                                     filter={treeFilter}
                                     activeFilePath={activeFile?.path}
                                 />
@@ -550,9 +678,10 @@ export default function WorkspacePage() {
 // =============== Sub-Components ===============
 
 // ---- File Tree ----
-function FileTreeNode({ node, onFileClick, depth = 0, filter = '', activeFilePath }: {
+function FileTreeNode({ node, onFileClick, onFileHover, depth = 0, filter = '', activeFilePath }: {
     node: FileNode;
     onFileClick: (path: string) => void;
+    onFileHover?: (path: string) => void;
     depth?: number;
     filter?: string;
     activeFilePath?: string;
@@ -577,6 +706,7 @@ function FileTreeNode({ node, onFileClick, depth = 0, filter = '', activeFilePat
                 className={`file-tree-item ${isActive ? 'active' : ''}`}
                 style={{ paddingLeft: 12 + depth * 16 }}
                 onClick={() => node.path && onFileClick(node.path)}
+                onMouseEnter={() => node.path && onFileHover?.(node.path)}
             >
                 <FileIcon name={node.name} className="tree-file-icon" />
                 <span className="name">{node.name}</span>
@@ -605,6 +735,7 @@ function FileTreeNode({ node, onFileClick, depth = 0, filter = '', activeFilePat
                                 key={`${child.name}-${i}`}
                                 node={child}
                                 onFileClick={onFileClick}
+                                onFileHover={onFileHover}
                                 depth={depth + 1}
                                 filter={filter}
                                 activeFilePath={activeFilePath}

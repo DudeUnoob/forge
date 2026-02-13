@@ -7,22 +7,29 @@ import type { Repo, FileNode, Storyboard, StoryboardBlock, ChatMessage, Role } f
 import { ROLES } from '@/lib/types';
 import '../../workspace.css';
 
-type IconName =
-    | 'files'
-    | 'search'
-    | 'storyboard'
-    | 'settings'
-    | 'account'
-    | 'chat'
-    | 'chevron-right'
-    | 'chevron-down'
-    | 'folder'
-    | 'folder-open'
-    | 'close'
-    | 'warning'
-    | 'command'
-    | 'spark'
-    | 'vscode';
+interface SetiIconDefinition {
+    fontCharacter?: string;
+    fontColor?: string;
+}
+
+interface SetiIconTheme {
+    file?: string;
+    folder?: string;
+    folderExpanded?: string;
+    rootFolder?: string;
+    rootFolderExpanded?: string;
+    fileExtensions?: Record<string, string>;
+    fileNames?: Record<string, string>;
+    folderNames?: Record<string, string>;
+    folderNamesExpanded?: Record<string, string>;
+    iconDefinitions?: Record<string, SetiIconDefinition>;
+}
+
+const SETI_THEME_URL = 'https://cdn.jsdelivr.net/gh/microsoft/vscode@main/extensions/theme-seti/icons/vs-seti-icon-theme.json';
+const FILE_CONTENT_CACHE_LIMIT = 80;
+const PREFETCH_BATCH_SIZE = 20;
+const PREFETCH_TREE_SAMPLE_SIZE = 16;
+const PREFETCH_BLOCK_SAMPLE_SIZE = 12;
 
 // =============== Main Workspace Component ===============
 
@@ -58,6 +65,27 @@ export default function WorkspacePage() {
     const [showCommandPalette, setShowCommandPalette] = useState(false);
     const [treeFilter, setTreeFilter] = useState('');
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [setiTheme, setSetiTheme] = useState<SetiIconTheme | null>(null);
+    const fileContentCacheRef = useRef<Map<string, string>>(new Map());
+    const inFlightFileRequestsRef = useRef<Map<string, Promise<string>>>(new Map());
+    const prefetchedPathsRef = useRef<Set<string>>(new Set());
+
+    useEffect(() => {
+        let isMounted = true;
+
+        fetch(SETI_THEME_URL)
+            .then(res => res.json())
+            .then((theme: SetiIconTheme) => {
+                if (isMounted) setSetiTheme(theme);
+            })
+            .catch(() => {
+                if (isMounted) setSetiTheme(null);
+            });
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
 
     // ---- Add keyboard shortcuts ----
     useEffect(() => {
@@ -80,6 +108,101 @@ export default function WorkspacePage() {
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
+
+    // Reset caches when switching repositories
+    useEffect(() => {
+        fileContentCacheRef.current.clear();
+        inFlightFileRequestsRef.current.clear();
+        prefetchedPathsRef.current.clear();
+    }, [repoId]);
+
+    const cacheFileContent = useCallback((path: string, content: string) => {
+        const cache = fileContentCacheRef.current;
+        if (cache.has(path)) {
+            cache.delete(path);
+        }
+        cache.set(path, content);
+
+        while (cache.size > FILE_CONTENT_CACHE_LIMIT) {
+            const oldest = cache.keys().next().value;
+            if (!oldest) break;
+            cache.delete(oldest);
+        }
+    }, []);
+
+    const fetchFileContent = useCallback(async (path: string): Promise<string> => {
+        const cache = fileContentCacheRef.current;
+        if (cache.has(path)) {
+            const cached = cache.get(path) as string;
+            cache.delete(path);
+            cache.set(path, cached);
+            return cached;
+        }
+
+        const pending = inFlightFileRequestsRef.current.get(path);
+        if (pending) return pending;
+
+        const request = api.repos.fileContent(repoId, path)
+            .then(({ content }) => {
+                cacheFileContent(path, content);
+                return content;
+            })
+            .finally(() => {
+                inFlightFileRequestsRef.current.delete(path);
+            });
+
+        inFlightFileRequestsRef.current.set(path, request);
+        return request;
+    }, [cacheFileContent, repoId]);
+
+    const prefetchFiles = useCallback(async (paths: string[]) => {
+        const uniqueCandidates = [...new Set(
+            paths
+                .map(path => path?.trim())
+                .filter((path): path is string => Boolean(path)),
+        )];
+
+        const pathsToPrefetch = uniqueCandidates
+            .filter((path) => {
+                if (fileContentCacheRef.current.has(path)) return false;
+                if (inFlightFileRequestsRef.current.has(path)) return false;
+                if (prefetchedPathsRef.current.has(path)) return false;
+                return true;
+            })
+            .slice(0, PREFETCH_BATCH_SIZE);
+
+        if (pathsToPrefetch.length === 0) return;
+        pathsToPrefetch.forEach(path => prefetchedPathsRef.current.add(path));
+
+        try {
+            const { files } = await api.repos.fileContents(repoId, pathsToPrefetch);
+            const fetched = new Set<string>();
+
+            for (const file of files) {
+                cacheFileContent(file.path, file.content);
+                fetched.add(file.path);
+            }
+
+            for (const path of pathsToPrefetch) {
+                if (!fetched.has(path)) {
+                    prefetchedPathsRef.current.delete(path);
+                }
+            }
+        } catch {
+            for (const path of pathsToPrefetch) {
+                prefetchedPathsRef.current.delete(path);
+            }
+
+            // Fallback for environments where batch endpoint is not deployed yet.
+            await Promise.allSettled(
+                pathsToPrefetch.slice(0, 4).map(path => fetchFileContent(path)),
+            );
+        }
+    }, [cacheFileContent, fetchFileContent, repoId]);
+
+    const prefetchFile = useCallback((path: string) => {
+        void prefetchFiles([path]);
+    }, [prefetchFiles]);
 
     // ---- Fetch data on mount ----
     useEffect(() => {
@@ -124,6 +247,24 @@ export default function WorkspacePage() {
         load();
     }, [repoId, storyboardId]);
 
+    // Warm cache for likely next-open files
+    useEffect(() => {
+        if (!fileTree) return;
+
+        const treeCandidates = getFileList(fileTree).slice(0, PREFETCH_TREE_SAMPLE_SIZE);
+        const storyboardCandidates = (storyboard?.blocks || [])
+            .flatMap(block => block.keyFiles || [])
+            .slice(0, PREFETCH_BLOCK_SAMPLE_SIZE);
+
+        void prefetchFiles([...storyboardCandidates, ...treeCandidates]);
+    }, [fileTree, storyboard, prefetchFiles]);
+
+    // Prefetch key files whenever active block changes
+    useEffect(() => {
+        if (!activeBlock?.keyFiles?.length) return;
+        void prefetchFiles(activeBlock.keyFiles.slice(0, PREFETCH_BLOCK_SAMPLE_SIZE));
+    }, [activeBlock, prefetchFiles]);
+
     // ---- Open a file ----
     const openFile = useCallback(async (path: string) => {
         const existing = openFiles.findIndex(f => f.path === path);
@@ -133,9 +274,14 @@ export default function WorkspacePage() {
         }
 
         try {
-            const data = await api.repos.fileContent(repoId, path);
+            const content = await fetchFileContent(path);
             setOpenFiles(prev => {
-                const next = [...prev, { path, content: data.content }];
+                const alreadyOpen = prev.findIndex(file => file.path === path);
+                if (alreadyOpen >= 0) {
+                    setActiveFileIndex(alreadyOpen);
+                    return prev;
+                }
+                const next = [...prev, { path, content }];
                 setActiveFileIndex(next.length - 1);
                 return next;
             });
@@ -143,7 +289,7 @@ export default function WorkspacePage() {
             console.error('Failed to open file:', err);
             setErrors(prev => [...prev, `Could not open ${path}`]);
         }
-    }, [repoId, openFiles]);
+    }, [openFiles, fetchFileContent]);
 
     // ---- Close a file tab ----
     const closeFile = useCallback((index: number) => {
@@ -193,9 +339,10 @@ export default function WorkspacePage() {
         setChatMessages([]);
         setHighlightedLines(new Set());
         if (block.keyFiles?.length > 0) {
+            void prefetchFiles(block.keyFiles.slice(0, PREFETCH_BLOCK_SAMPLE_SIZE));
             openFile(block.keyFiles[0]);
         }
-    }, [openFile]);
+    }, [openFile, prefetchFiles]);
 
     // ---- Dismiss error ----
     const dismissError = useCallback((index: number) => {
@@ -228,7 +375,7 @@ export default function WorkspacePage() {
                         <span className="window-control green" />
                     </div>
                     <div className="topbar-brand">
-                        <AppIcon name="vscode" />
+                        <Codicon name="code" />
                         <span>Forge</span>
                     </div>
                     {repo && (
@@ -265,24 +412,30 @@ export default function WorkspacePage() {
                     onClick={() => { setSidebarView('explorer'); setSidebarCollapsed(false); }}
                     title="Explorer (⌘B)"
                 >
-                    <AppIcon name="files" />
+                    <Codicon name="files" />
                 </div>
                 <div
                     className={`activity-bar-icon ${sidebarView === 'search' && !sidebarCollapsed ? 'active' : ''}`}
                     onClick={() => { setSidebarView('search'); setSidebarCollapsed(false); }}
                     title="Search"
                 >
-                    <AppIcon name="search" />
+                    <Codicon name="search" />
                 </div>
                 <div
                     className={`activity-bar-icon ${sidebarView === 'storyboard' && !sidebarCollapsed ? 'active' : ''}`}
                     onClick={() => { setSidebarView('storyboard'); setSidebarCollapsed(false); }}
                     title="Storyboard Blocks"
                 >
-                    <AppIcon name="storyboard" />
+                    <Codicon name="source-control" />
                     {totalBlocks > 0 && (
                         <span className="badge-count">{totalBlocks}</span>
                     )}
+                </div>
+                <div className="activity-bar-icon" title="Run and Debug">
+                    <Codicon name="run-all" />
+                </div>
+                <div className="activity-bar-icon" title="Extensions">
+                    <Codicon name="extensions" />
                 </div>
                 <div className="activity-bar-spacer" />
                 <div
@@ -290,13 +443,13 @@ export default function WorkspacePage() {
                     onClick={() => setShowCommandPalette(true)}
                     title="Command Palette (⌘K)"
                 >
-                    <AppIcon name="command" />
+                    <Codicon name="command-palette" />
                 </div>
                 <div className="activity-bar-icon" title="Account">
-                    <AppIcon name="account" />
+                    <Codicon name="account" />
                 </div>
                 <div className="activity-bar-icon" title="Settings">
-                    <AppIcon name="settings" />
+                    <Codicon name="settings-gear" />
                 </div>
             </div>
 
@@ -308,7 +461,7 @@ export default function WorkspacePage() {
                             <span>Explorer</span>
                             <div className="sidebar-header-actions" aria-hidden="true">
                                 <button className="icon-btn">
-                                    <AppIcon name="command" />
+                                    <Codicon name="ellipsis" />
                                 </button>
                             </div>
                         </div>
@@ -325,12 +478,14 @@ export default function WorkspacePage() {
                                 <FileTreeNode
                                     node={fileTree}
                                     onFileClick={openFile}
+                                    onFileHover={prefetchFile}
                                     filter={treeFilter}
                                     activeFilePath={activeFile?.path}
+                                    setiTheme={setiTheme}
                                 />
                             ) : (
                                 <div className="empty-state">
-                                    <div className="empty-state-icon"><AppIcon name="folder" /></div>
+                                    <div className="empty-state-icon"><Codicon name="folder" /></div>
                                     <div className="empty-state-text">
                                         {errors.length > 0 ? 'Could not load file tree' : 'No files found'}
                                     </div>
@@ -352,7 +507,7 @@ export default function WorkspacePage() {
                         </div>
                         <div className="sidebar-content">
                             <div className="empty-state">
-                                <div className="empty-state-icon"><AppIcon name="search" /></div>
+                                <div className="empty-state-icon"><Codicon name="search" /></div>
                                 <div className="empty-state-text">Type to search across all files in the repository</div>
                             </div>
                         </div>
@@ -383,10 +538,10 @@ export default function WorkspacePage() {
                     <div>
                         {errors.map((err, i) => (
                             <div key={i} className="error-banner">
-                                <span className="error-banner-icon"><AppIcon name="warning" /></span>
+                                <span className="error-banner-icon"><Codicon name="warning" /></span>
                                 <span className="error-banner-text">{err}</span>
                                 <button className="error-banner-dismiss" onClick={() => dismissError(i)}>
-                                    <AppIcon name="close" />
+                                    <Codicon name="close" />
                                 </button>
                             </div>
                         ))}
@@ -402,13 +557,13 @@ export default function WorkspacePage() {
                                 className={`editor-tab ${i === activeFileIndex ? 'active' : ''}`}
                                 onClick={() => setActiveFileIndex(i)}
                             >
-                                <FileIcon name={getFileName(file.path)} className="tab-icon" />
+                                <SetiIcon theme={setiTheme} kind="file" name={getFileName(file.path)} className="tab-icon" />
                                 <span>{getFileName(file.path)}</span>
                                 <span
                                     className="editor-tab-close"
                                     onClick={(e) => { e.stopPropagation(); closeFile(i); }}
                                 >
-                                    <AppIcon name="close" />
+                                    <Codicon name="close" />
                                 </span>
                             </div>
                         ))}
@@ -422,7 +577,7 @@ export default function WorkspacePage() {
                             <span key={i}>
                                 {i > 0 && (
                                     <span className="breadcrumb-sep">
-                                        <AppIcon name="chevron-right" />
+                                        <Codicon name="chevron-right" />
                                     </span>
                                 )}
                                 <span className={`breadcrumb-item ${i === arr.length - 1 ? 'last' : ''}`}>
@@ -442,7 +597,7 @@ export default function WorkspacePage() {
                         />
                     ) : (
                         <div className="editor-welcome">
-                            <div className="editor-welcome-logo"><AppIcon name="vscode" /></div>
+                            <div className="editor-welcome-logo"><Codicon name="code" /></div>
                             <h2>Start by opening a file</h2>
                             <p>
                                 Select a storyboard block on the right to start learning,
@@ -470,14 +625,14 @@ export default function WorkspacePage() {
                         className={`panel-tab ${rightTab === 'storyboard' ? 'active' : ''}`}
                         onClick={() => setRightTab('storyboard')}
                     >
-                        <AppIcon name="storyboard" />
+                        <Codicon name="symbol-structure" />
                         Storyboard
                     </div>
                     <div
                         className={`panel-tab ${rightTab === 'chat' ? 'active' : ''}`}
                         onClick={() => setRightTab('chat')}
                     >
-                        <AppIcon name="chat" />
+                        <Codicon name="comment-discussion" />
                         Chat
                     </div>
                 </div>
@@ -489,6 +644,7 @@ export default function WorkspacePage() {
                             activeBlock={activeBlock}
                             completedBlocks={completedBlocks}
                             role={role}
+                            setiTheme={setiTheme}
                             onSelectBlock={selectBlock}
                             onToggleComplete={toggleBlockComplete}
                             onOpenFile={openFile}
@@ -509,7 +665,7 @@ export default function WorkspacePage() {
             {/* ---- Status Bar ---- */}
             <div className="statusbar">
                 <div className="statusbar-left">
-                    <div className="statusbar-item"><AppIcon name="spark" /> Forge</div>
+                    <div className="statusbar-item"><Codicon name="code" /> Forge</div>
                     <div className="statusbar-item">
                         {activeBlock ? activeBlock.title : 'No block selected'}
                     </div>
@@ -540,6 +696,7 @@ export default function WorkspacePage() {
                     onToggleSidebar={() => setSidebarCollapsed(v => !v)}
                     onSwitchRole={setRole}
                     fileTree={fileTree}
+                    setiTheme={setiTheme}
                     onOpenFile={(path: string) => { openFile(path); setShowCommandPalette(false); }}
                 />
             )}
@@ -550,12 +707,14 @@ export default function WorkspacePage() {
 // =============== Sub-Components ===============
 
 // ---- File Tree ----
-function FileTreeNode({ node, onFileClick, depth = 0, filter = '', activeFilePath }: {
+function FileTreeNode({ node, onFileClick, onFileHover, depth = 0, filter = '', activeFilePath, setiTheme }: {
     node: FileNode;
     onFileClick: (path: string) => void;
+    onFileHover?: (path: string) => void;
     depth?: number;
     filter?: string;
     activeFilePath?: string;
+    setiTheme?: SetiIconTheme | null;
 }) {
     const [expanded, setExpanded] = useState(depth < 2);
 
@@ -577,8 +736,9 @@ function FileTreeNode({ node, onFileClick, depth = 0, filter = '', activeFilePat
                 className={`file-tree-item ${isActive ? 'active' : ''}`}
                 style={{ paddingLeft: 12 + depth * 16 }}
                 onClick={() => node.path && onFileClick(node.path)}
+                onMouseEnter={() => node.path && onFileHover?.(node.path)}
             >
-                <FileIcon name={node.name} className="tree-file-icon" />
+                <SetiIcon theme={setiTheme} kind="file" name={node.name} className="tree-file-icon" />
                 <span className="name">{node.name}</span>
             </div>
         );
@@ -591,8 +751,13 @@ function FileTreeNode({ node, onFileClick, depth = 0, filter = '', activeFilePat
                 style={{ paddingLeft: 12 + depth * 16 }}
                 onClick={() => setExpanded(!expanded)}
             >
-                <span className="icon tree-chevron">{expanded ? <AppIcon name="chevron-down" /> : <AppIcon name="chevron-right" />}</span>
-                <span className="icon tree-folder">{expanded ? <AppIcon name="folder-open" /> : <AppIcon name="folder" />}</span>
+                <span className="icon tree-chevron"><Codicon name={expanded ? 'chevron-down' : 'chevron-right'} /></span>
+                <SetiIcon
+                    theme={setiTheme}
+                    kind={expanded ? 'folderExpanded' : 'folder'}
+                    name={node.name}
+                    className="tree-folder-icon"
+                />
                 <span className="name" style={{ fontWeight: depth === 0 ? 500 : 400 }}>{node.name}</span>
             </div>
             {expanded && node.children && (
@@ -605,9 +770,11 @@ function FileTreeNode({ node, onFileClick, depth = 0, filter = '', activeFilePat
                                 key={`${child.name}-${i}`}
                                 node={child}
                                 onFileClick={onFileClick}
+                                onFileHover={onFileHover}
                                 depth={depth + 1}
                                 filter={filter}
                                 activeFilePath={activeFilePath}
+                                setiTheme={setiTheme}
                             />
                         ))}
                 </div>
@@ -656,7 +823,7 @@ function MiniBlockList({ blocks, activeBlock, completedBlocks, role, onSelectBlo
     if (filtered.length === 0) {
         return (
             <div className="empty-state">
-                <div className="empty-state-icon"><AppIcon name="storyboard" /></div>
+                <div className="empty-state-icon"><Codicon name="symbol-structure" /></div>
                 <div className="empty-state-text">
                     No storyboard blocks yet. Generate a storyboard to see learning modules here.
                 </div>
@@ -686,11 +853,12 @@ function MiniBlockList({ blocks, activeBlock, completedBlocks, role, onSelectBlo
 }
 
 // ---- Storyboard Panel ----
-function StoryboardPanel({ blocks, activeBlock, completedBlocks, role, onSelectBlock, onToggleComplete, onOpenFile }: {
+function StoryboardPanel({ blocks, activeBlock, completedBlocks, role, setiTheme, onSelectBlock, onToggleComplete, onOpenFile }: {
     blocks: StoryboardBlock[];
     activeBlock: StoryboardBlock | null;
     completedBlocks: Set<string>;
     role: Role;
+    setiTheme: SetiIconTheme | null;
     onSelectBlock: (block: StoryboardBlock) => void;
     onToggleComplete: (blockId: string) => void;
     onOpenFile: (path: string) => void;
@@ -745,7 +913,7 @@ function StoryboardPanel({ blocks, activeBlock, completedBlocks, role, onSelectB
                         <div className="block-files-list">
                             {activeBlock.keyFiles.map(f => (
                                 <div key={f} className="block-file-link" onClick={() => onOpenFile(f)}>
-                                    <FileIcon name={getFileName(f)} className="inline-file-icon" /> {f}
+                                    <SetiIcon theme={setiTheme} kind="file" name={getFileName(f)} className="inline-file-icon" /> {f}
                                 </div>
                             ))}
                         </div>
@@ -783,7 +951,7 @@ function StoryboardPanel({ blocks, activeBlock, completedBlocks, role, onSelectB
     if (blocks.length === 0) {
         return (
             <div className="empty-state" style={{ height: '100%' }}>
-                <div className="empty-state-icon"><AppIcon name="storyboard" /></div>
+                <div className="empty-state-icon"><Codicon name="symbol-structure" /></div>
                 <div className="empty-state-text">
                     No storyboard blocks generated yet.
                     The storyboard will appear here once generated.
@@ -915,7 +1083,7 @@ function ChatPanel({ messages, input, loading, activeBlock, onInputChange, onSen
                                 onClick={onSend}
                                 disabled={loading || !input.trim()}
                             >
-                                <AppIcon name="chevron-right" />
+                                <Codicon name="arrow-right" />
                             </button>
                         </div>
                     </div>
@@ -926,11 +1094,12 @@ function ChatPanel({ messages, input, loading, activeBlock, onInputChange, onSen
 }
 
 // ---- Command Palette ----
-function CommandPalette({ onClose, onToggleSidebar, onSwitchRole, fileTree, onOpenFile }: {
+function CommandPalette({ onClose, onToggleSidebar, onSwitchRole, fileTree, setiTheme, onOpenFile }: {
     onClose: () => void;
     onToggleSidebar: () => void;
     onSwitchRole: (role: Role) => void;
     fileTree: FileNode | null;
+    setiTheme: SetiIconTheme | null;
     onOpenFile: (path: string) => void;
 }) {
     const [query, setQuery] = useState('');
@@ -941,16 +1110,16 @@ function CommandPalette({ onClose, onToggleSidebar, onSwitchRole, fileTree, onOp
     }, []);
 
     const commands: { icon: ReactNode; label: string; shortcut: string; action: () => void }[] = [
-        { icon: <AppIcon name="files" />, label: 'Toggle Sidebar', shortcut: '⌘B', action: () => { onToggleSidebar(); onClose(); } },
-        { icon: <AppIcon name="spark" />, label: 'Switch to Full Stack', shortcut: '', action: () => { onSwitchRole('fullstack'); onClose(); } },
-        { icon: <AppIcon name="spark" />, label: 'Switch to Frontend', shortcut: '', action: () => { onSwitchRole('frontend'); onClose(); } },
-        { icon: <AppIcon name="spark" />, label: 'Switch to Backend', shortcut: '', action: () => { onSwitchRole('backend'); onClose(); } },
-        { icon: <AppIcon name="spark" />, label: 'Switch to Infra', shortcut: '', action: () => { onSwitchRole('infra'); onClose(); } },
+        { icon: <Codicon name="files" />, label: 'Toggle Sidebar', shortcut: '⌘B', action: () => { onToggleSidebar(); onClose(); } },
+        { icon: <Codicon name="symbol-structure" />, label: 'Switch to Full Stack', shortcut: '', action: () => { onSwitchRole('fullstack'); onClose(); } },
+        { icon: <Codicon name="symbol-color" />, label: 'Switch to Frontend', shortcut: '', action: () => { onSwitchRole('frontend'); onClose(); } },
+        { icon: <Codicon name="server" />, label: 'Switch to Backend', shortcut: '', action: () => { onSwitchRole('backend'); onClose(); } },
+        { icon: <Codicon name="tools" />, label: 'Switch to Infra', shortcut: '', action: () => { onSwitchRole('infra'); onClose(); } },
     ];
 
     // Add open file commands from file tree
     const fileCommands = getFileList(fileTree).slice(0, 20).map(path => ({
-        icon: <FileIcon name={getFileName(path)} className="command-file-icon" />,
+        icon: <SetiIcon theme={setiTheme} kind="file" name={getFileName(path)} className="command-file-icon" />,
         label: path,
         shortcut: '',
         action: () => onOpenFile(path),
@@ -1016,154 +1185,90 @@ function sortTreeNodes(a: FileNode, b: FileNode): number {
     return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
 }
 
-function AppIcon({ name, className = '' }: { name: IconName; className?: string }) {
-    const common = { className: `app-icon ${className}`.trim(), viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5 };
+function Codicon({ name, className = '' }: { name: string; className?: string }) {
+    return <i className={`codicon codicon-${name} ${className}`.trim()} aria-hidden="true" />;
+}
 
-    switch (name) {
-        case 'files':
-            return (
-                <svg {...common}>
-                    <path d="M2 3.5h5l1 1.5h6v7.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5Z" />
-                    <path d="M2 6h12" />
-                </svg>
-            );
-        case 'search':
-            return (
-                <svg {...common}>
-                    <circle cx="7" cy="7" r="4.5" />
-                    <path d="m10.5 10.5 3 3" />
-                </svg>
-            );
-        case 'storyboard':
-            return (
-                <svg {...common}>
-                    <rect x="2" y="2" width="5" height="5" />
-                    <rect x="9" y="2" width="5" height="5" />
-                    <rect x="2" y="9" width="5" height="5" />
-                    <rect x="9" y="9" width="5" height="5" />
-                </svg>
-            );
-        case 'settings':
-            return (
-                <svg {...common}>
-                    <circle cx="8" cy="8" r="2.5" />
-                    <path d="M8 1.8v2M8 12.2v2M1.8 8h2M12.2 8h2M3.2 3.2l1.4 1.4M11.4 11.4l1.4 1.4M12.8 3.2l-1.4 1.4M4.6 11.4l-1.4 1.4" />
-                </svg>
-            );
-        case 'account':
-            return (
-                <svg {...common}>
-                    <circle cx="8" cy="5" r="2.5" />
-                    <path d="M3 13c0-2.1 2.2-3.6 5-3.6s5 1.5 5 3.6" />
-                </svg>
-            );
-        case 'chat':
-            return (
-                <svg {...common}>
-                    <path d="M2.5 3.5h11v7h-5l-3 2.5v-2.5h-3a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1Z" />
-                </svg>
-            );
-        case 'chevron-right':
-            return (
-                <svg {...common}>
-                    <path d="m6 3 4 5-4 5" />
-                </svg>
-            );
-        case 'chevron-down':
-            return (
-                <svg {...common}>
-                    <path d="m3 6 5 4 5-4" />
-                </svg>
-            );
-        case 'folder':
-            return (
-                <svg {...common}>
-                    <path d="M1.8 4.5h4l1.4 1.7h7v5.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1V4.5Z" />
-                </svg>
-            );
-        case 'folder-open':
-            return (
-                <svg {...common}>
-                    <path d="M2 5.2h4l1 1.4h7l-1.7 5.7a1 1 0 0 1-1 .7H2.7a1 1 0 0 1-1-1l.3-6.8Z" />
-                </svg>
-            );
-        case 'close':
-            return (
-                <svg {...common}>
-                    <path d="m4 4 8 8M12 4l-8 8" />
-                </svg>
-            );
-        case 'warning':
-            return (
-                <svg {...common}>
-                    <path d="M8 2.3 14 13H2L8 2.3Z" />
-                    <path d="M8 6.2v3.5M8 11.7h.01" />
-                </svg>
-            );
-        case 'command':
-            return (
-                <svg {...common}>
-                    <rect x="2.2" y="2.2" width="4.3" height="4.3" rx="1.3" />
-                    <rect x="9.5" y="2.2" width="4.3" height="4.3" rx="1.3" />
-                    <rect x="2.2" y="9.5" width="4.3" height="4.3" rx="1.3" />
-                    <rect x="9.5" y="9.5" width="4.3" height="4.3" rx="1.3" />
-                </svg>
-            );
-        case 'spark':
-            return (
-                <svg {...common}>
-                    <path d="m8 2 1.3 3.1L12.5 6l-3.2 1 .8 3.3L8 8.6l-2.1 1.7.8-3.3L3.5 6l3.2-.9L8 2Z" />
-                </svg>
-            );
-        case 'vscode':
-            return (
-                <svg {...common}>
-                    <path d="M11.3 2.4 6.2 6.9l-2-1.5L2.6 6.8l1.7 1.4-1.7 1.4L4.2 11l2-1.5 5.1 4.1 2.1-1V3.4l-2.1-1Z" />
-                </svg>
-            );
-        default:
-            return null;
+function SetiIcon({ theme, kind, name, className = '' }: {
+    theme: SetiIconTheme | null | undefined;
+    kind: 'file' | 'folder' | 'folderExpanded';
+    name: string;
+    className?: string;
+}) {
+    const iconMeta = resolveSetiIcon(theme, kind, name);
+
+    if (iconMeta?.glyph) {
+        const style = iconMeta.color ? ({ color: iconMeta.color } as CSSProperties) : undefined;
+        return (
+            <span className={`seti-icon ${className}`.trim()} style={style}>
+                {iconMeta.glyph}
+            </span>
+        );
     }
+
+    if (kind === 'folder' || kind === 'folderExpanded') {
+        return <Codicon name={kind === 'folderExpanded' ? 'folder-opened' : 'folder'} className={className} />;
+    }
+
+    return <Codicon name="file" className={className} />;
 }
 
-function FileIcon({ name, className = '' }: { name: string; className?: string }) {
-    const iconMeta = getFileIconMeta(name);
-    const style = {
-        '--file-icon-color': iconMeta.color,
-        '--file-icon-bg': iconMeta.background,
-    } as CSSProperties;
+function resolveSetiIcon(theme: SetiIconTheme | null | undefined, kind: 'file' | 'folder' | 'folderExpanded', name: string) {
+    if (!theme?.iconDefinitions) return null;
 
-    return (
-        <span className={`file-icon ${className}`.trim()} style={style}>
-            {iconMeta.label}
-        </span>
-    );
-}
+    const normalizedName = name.toLowerCase();
+    const iconId = kind === 'file'
+        ? resolveSetiFileIconId(theme, normalizedName)
+        : resolveSetiFolderIconId(theme, normalizedName, kind === 'folderExpanded');
 
-function getFileIconMeta(name: string): { label: string; color: string; background: string } {
-    const ext = name.split('.').pop()?.toLowerCase() || '';
-    const map: Record<string, { label: string; color: string; background: string }> = {
-        ts: { label: 'TS', color: '#3178c6', background: 'rgba(49, 120, 198, 0.2)' },
-        tsx: { label: 'TX', color: '#4fc1ff', background: 'rgba(79, 193, 255, 0.2)' },
-        js: { label: 'JS', color: '#d7ba7d', background: 'rgba(215, 186, 125, 0.2)' },
-        jsx: { label: 'JX', color: '#d7ba7d', background: 'rgba(215, 186, 125, 0.2)' },
-        css: { label: 'CS', color: '#42a5f5', background: 'rgba(66, 165, 245, 0.2)' },
-        scss: { label: 'SC', color: '#c586c0', background: 'rgba(197, 134, 192, 0.2)' },
-        html: { label: 'HT', color: '#e37933', background: 'rgba(227, 121, 51, 0.2)' },
-        json: { label: '{}', color: '#cbcb41', background: 'rgba(203, 203, 65, 0.2)' },
-        md: { label: 'MD', color: '#519aba', background: 'rgba(81, 154, 186, 0.2)' },
-        yml: { label: 'YM', color: '#f44747', background: 'rgba(244, 71, 71, 0.2)' },
-        yaml: { label: 'YM', color: '#f44747', background: 'rgba(244, 71, 71, 0.2)' },
-        py: { label: 'PY', color: '#4b8bbe', background: 'rgba(75, 139, 190, 0.2)' },
-        go: { label: 'GO', color: '#00add8', background: 'rgba(0, 173, 216, 0.2)' },
-        rs: { label: 'RS', color: '#ce9178', background: 'rgba(206, 145, 120, 0.2)' },
-        java: { label: 'JV', color: '#b07219', background: 'rgba(176, 114, 25, 0.2)' },
-        sh: { label: 'SH', color: '#89d185', background: 'rgba(137, 209, 133, 0.2)' },
-        lock: { label: 'LK', color: '#808080', background: 'rgba(128, 128, 128, 0.2)' },
-        svg: { label: 'SV', color: '#e3a832', background: 'rgba(227, 168, 50, 0.2)' },
-        txt: { label: 'TX', color: '#9da5b4', background: 'rgba(157, 165, 180, 0.2)' },
+    if (!iconId) return null;
+
+    const definition = theme.iconDefinitions[iconId];
+    if (!definition?.fontCharacter) return null;
+
+    const glyph = fontCharacterToGlyph(definition.fontCharacter);
+    if (!glyph) return null;
+
+    return {
+        glyph,
+        color: definition.fontColor,
     };
-    return map[ext] || { label: 'FI', color: '#9da5b4', background: 'rgba(157, 165, 180, 0.2)' };
+}
+
+function resolveSetiFileIconId(theme: SetiIconTheme, lowerName: string): string {
+    const exactMatch = theme.fileNames?.[lowerName];
+    if (exactMatch) return exactMatch;
+
+    const parts = lowerName.split('.');
+    if (parts.length > 1) {
+        for (let i = 1; i < parts.length; i += 1) {
+            const ext = parts.slice(i).join('.');
+            const byExtension = theme.fileExtensions?.[ext];
+            if (byExtension) return byExtension;
+        }
+    }
+
+    return theme.file || '';
+}
+
+function resolveSetiFolderIconId(theme: SetiIconTheme, lowerName: string, expanded: boolean): string {
+    if (expanded) {
+        const folderNameExpanded = theme.folderNamesExpanded?.[lowerName];
+        if (folderNameExpanded) return folderNameExpanded;
+        return theme.folderExpanded || theme.rootFolderExpanded || theme.folder || '';
+    }
+
+    const folderName = theme.folderNames?.[lowerName];
+    if (folderName) return folderName;
+
+    return theme.folder || theme.rootFolder || '';
+}
+
+function fontCharacterToGlyph(fontCharacter: string): string {
+    const normalized = fontCharacter.replace('\\', '');
+    const codepoint = Number.parseInt(normalized, 16);
+    if (Number.isNaN(codepoint)) return '';
+    return String.fromCodePoint(codepoint);
 }
 
 /** Get language name for status bar */

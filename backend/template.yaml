@@ -103,6 +103,12 @@ Resources:
             ApiId: !Ref ForgeApi
             Path: /repos/{id}/files
             Method: GET
+        BatchFiles:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ForgeApi
+            Path: /repos/{id}/files/batch
+            Method: POST
         GetFile:
           Type: HttpApi
           Properties:
