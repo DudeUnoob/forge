@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, type CSSProperties, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useId, useMemo, useRef, type CSSProperties, type ReactNode } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import type { Repo, FileNode, Storyboard, StoryboardBlock, ChatMessage, Role } from '@/lib/types';
@@ -25,7 +25,34 @@ interface SetiIconTheme {
     iconDefinitions?: Record<string, SetiIconDefinition>;
 }
 
+interface VscodeLikeIcon {
+    type: 'badge' | 'codicon';
+    label?: string;
+    codicon?: string;
+    color?: string;
+    background?: string;
+    dotColor?: string;
+}
+
+interface MermaidRenderResult {
+    svg: string;
+}
+
+interface MermaidApi {
+    initialize: (config: Record<string, unknown>) => void;
+    render: (id: string, diagram: string) => Promise<MermaidRenderResult>;
+}
+
+declare global {
+    interface Window {
+        mermaid?: MermaidApi;
+        __forgeMermaidLoader?: Promise<MermaidApi>;
+        __forgeMermaidInitialized?: boolean;
+    }
+}
+
 const SETI_THEME_URL = 'https://cdn.jsdelivr.net/gh/microsoft/vscode@main/extensions/theme-seti/icons/vs-seti-icon-theme.json';
+const MERMAID_CDN_URL = 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js';
 const FILE_CONTENT_CACHE_LIMIT = 80;
 const PREFETCH_BATCH_SIZE = 20;
 const PREFETCH_TREE_SAMPLE_SIZE = 16;
@@ -52,7 +79,6 @@ export default function WorkspacePage() {
     const [highlightedLines, setHighlightedLines] = useState<Set<number>>(new Set());
 
     // Panel state
-    const [rightTab, setRightTab] = useState<'storyboard' | 'chat'>('storyboard');
     const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
     const [chatInput, setChatInput] = useState('');
     const [chatLoading, setChatLoading] = useState(false);
@@ -231,9 +257,6 @@ export default function WorkspacePage() {
                 try {
                     const sb = await api.storyboard.get(storyboardId);
                     setStoryboard(sb);
-                    if (sb.blocks.length > 0) {
-                        setActiveBlock(sb.blocks[0]);
-                    }
                 } catch (err) {
                     const msg = err instanceof Error ? err.message : 'Failed to load storyboard';
                     loadErrors.push(`Storyboard: ${msg}`);
@@ -299,16 +322,117 @@ export default function WorkspacePage() {
         }
     }, [activeFileIndex]);
 
+    const visibleBlocks = useMemo(() => {
+        const sorted = [...(storyboard?.blocks || [])]
+            .sort((a, b) => a.order - b.order);
+
+        if (role === 'fullstack') return sorted;
+
+        const filtered = sorted.filter(block => blockMatchesRole(block, role));
+        return filtered.length > 0 ? filtered : sorted;
+    }, [storyboard, role]);
+
+    const firstIncompleteIndex = visibleBlocks.findIndex(block => !completedBlocks.has(block.blockId));
+    const unlockedBlockIndex = visibleBlocks.length === 0
+        ? -1
+        : (firstIncompleteIndex === -1 ? visibleBlocks.length - 1 : firstIncompleteIndex);
+    const activeBlockIndex = activeBlock
+        ? visibleBlocks.findIndex(block => block.blockId === activeBlock.blockId)
+        : -1;
+    const totalBlocks = visibleBlocks.length;
+    const completedCount = visibleBlocks.filter(block => completedBlocks.has(block.blockId)).length;
+    const progressPercent = totalBlocks > 0 ? (completedCount / totalBlocks) * 100 : 0;
+    const activeBlockCompleted = activeBlock ? completedBlocks.has(activeBlock.blockId) : false;
+    const canGoPrev = activeBlockIndex > 0;
+    const canGoNext = (
+        activeBlockIndex >= 0
+        && activeBlockIndex < totalBlocks - 1
+        && activeBlockCompleted
+    );
+    const nextBlockLocked = Boolean(
+        activeBlockIndex >= 0
+        && activeBlockIndex < totalBlocks - 1
+        && activeBlock
+        && !activeBlockCompleted
+    );
+
+    const activateBlock = useCallback((block: StoryboardBlock) => {
+        setActiveBlock(block);
+        setChatMessages([]);
+        setHighlightedLines(new Set());
+        if (block.keyFiles?.length > 0) {
+            void prefetchFiles(block.keyFiles.slice(0, PREFETCH_BLOCK_SAMPLE_SIZE));
+            void openFile(block.keyFiles[0]);
+        }
+    }, [openFile, prefetchFiles]);
+
+    useEffect(() => {
+        if (visibleBlocks.length === 0) {
+            if (activeBlock !== null) {
+                setActiveBlock(null);
+                setChatMessages([]);
+            }
+            return;
+        }
+
+        const currentIndex = activeBlock
+            ? visibleBlocks.findIndex(block => block.blockId === activeBlock.blockId)
+            : -1;
+
+        if (currentIndex >= 0 && currentIndex <= unlockedBlockIndex) {
+            return;
+        }
+
+        const nextIndex = Math.max(0, Math.min(unlockedBlockIndex, visibleBlocks.length - 1));
+        activateBlock(visibleBlocks[nextIndex]);
+    }, [activeBlock, activateBlock, unlockedBlockIndex, visibleBlocks]);
+
+    // ---- Select block ----
+    const selectBlock = useCallback((block: StoryboardBlock, forceSelection = false) => {
+        const blockIndex = visibleBlocks.findIndex(item => item.blockId === block.blockId);
+        if (blockIndex === -1) return;
+        if (!forceSelection && blockIndex > unlockedBlockIndex) return;
+        activateBlock(block);
+    }, [activateBlock, unlockedBlockIndex, visibleBlocks]);
+
     // ---- Toggle block completion ----
     const toggleBlockComplete = useCallback((blockId: string) => {
+        const blockIndex = visibleBlocks.findIndex(block => block.blockId === blockId);
+        if (blockIndex < 0) return;
+
+        const isCurrentlyComplete = completedBlocks.has(blockId);
+
         setCompletedBlocks(prev => {
             const next = new Set(prev);
-            if (next.has(blockId)) next.delete(blockId);
-            else next.add(blockId);
+
+            if (isCurrentlyComplete) {
+                next.delete(blockId);
+                for (let i = blockIndex + 1; i < visibleBlocks.length; i += 1) {
+                    next.delete(visibleBlocks[i].blockId);
+                }
+            } else {
+                next.add(blockId);
+            }
+
             return next;
         });
-        api.progress.completeBlock('anonymous', repoId, blockId).catch(console.error);
-    }, [repoId]);
+
+        if (!isCurrentlyComplete) {
+            api.progress.completeBlock('anonymous', repoId, blockId).catch(console.error);
+        }
+    }, [completedBlocks, repoId, visibleBlocks]);
+
+    const goToPreviousBlock = useCallback(() => {
+        if (!canGoPrev) return;
+        const prev = visibleBlocks[activeBlockIndex - 1];
+        if (prev) selectBlock(prev, true);
+    }, [activeBlockIndex, canGoPrev, selectBlock, visibleBlocks]);
+
+    const goToNextBlock = useCallback(() => {
+        if (!canGoNext) return;
+        const next = visibleBlocks[activeBlockIndex + 1];
+        if (next) selectBlock(next, true);
+    }, [activeBlockIndex, canGoNext, selectBlock, visibleBlocks]);
 
     // ---- Send chat message ----
     const sendChat = useCallback(async () => {
@@ -333,26 +457,10 @@ export default function WorkspacePage() {
         }
     }, [chatInput, storyboardId, activeBlock]);
 
-    // ---- Select block ----
-    const selectBlock = useCallback((block: StoryboardBlock) => {
-        setActiveBlock(block);
-        setChatMessages([]);
-        setHighlightedLines(new Set());
-        if (block.keyFiles?.length > 0) {
-            void prefetchFiles(block.keyFiles.slice(0, PREFETCH_BLOCK_SAMPLE_SIZE));
-            openFile(block.keyFiles[0]);
-        }
-    }, [openFile, prefetchFiles]);
-
     // ---- Dismiss error ----
     const dismissError = useCallback((index: number) => {
         setErrors(prev => prev.filter((_, i) => i !== index));
     }, []);
-
-    // ---- Compute progress ----
-    const totalBlocks = storyboard?.blocks.length || 0;
-    const completedCount = completedBlocks.size;
-    const progressPercent = totalBlocks > 0 ? (completedCount / totalBlocks) * 100 : 0;
 
     if (loading) {
         return (
@@ -520,10 +628,10 @@ export default function WorkspacePage() {
                         </div>
                         <div className="sidebar-content">
                             <MiniBlockList
-                                blocks={storyboard?.blocks || []}
+                                blocks={visibleBlocks}
                                 activeBlock={activeBlock}
                                 completedBlocks={completedBlocks}
-                                role={role}
+                                unlockedBlockIndex={unlockedBlockIndex}
                                 onSelectBlock={selectBlock}
                             />
                         </div>
@@ -620,45 +728,29 @@ export default function WorkspacePage() {
 
             {/* ---- Right Panel ---- */}
             <div className="right-panel">
-                <div className="panel-tabs">
-                    <div
-                        className={`panel-tab ${rightTab === 'storyboard' ? 'active' : ''}`}
-                        onClick={() => setRightTab('storyboard')}
-                    >
-                        <Codicon name="symbol-structure" />
-                        Storyboard
-                    </div>
-                    <div
-                        className={`panel-tab ${rightTab === 'chat' ? 'active' : ''}`}
-                        onClick={() => setRightTab('chat')}
-                    >
-                        <Codicon name="comment-discussion" />
-                        Chat
-                    </div>
-                </div>
-
                 <div className="panel-content">
-                    {rightTab === 'storyboard' ? (
-                        <StoryboardPanel
-                            blocks={storyboard?.blocks || []}
-                            activeBlock={activeBlock}
-                            completedBlocks={completedBlocks}
-                            role={role}
-                            setiTheme={setiTheme}
-                            onSelectBlock={selectBlock}
-                            onToggleComplete={toggleBlockComplete}
-                            onOpenFile={openFile}
-                        />
-                    ) : (
-                        <ChatPanel
-                            messages={chatMessages}
-                            input={chatInput}
-                            loading={chatLoading}
-                            activeBlock={activeBlock}
-                            onInputChange={setChatInput}
-                            onSend={sendChat}
-                        />
-                    )}
+                    <StoryboardPanel
+                        blocks={visibleBlocks}
+                        activeBlock={activeBlock}
+                        activeBlockIndex={activeBlockIndex}
+                        unlockedBlockIndex={unlockedBlockIndex}
+                        completedBlocks={completedBlocks}
+                        completedCount={completedCount}
+                        progressPercent={progressPercent}
+                        nextBlockLocked={nextBlockLocked}
+                        canGoPrev={canGoPrev}
+                        canGoNext={canGoNext}
+                        setiTheme={setiTheme}
+                        chatMessages={chatMessages}
+                        chatInput={chatInput}
+                        chatLoading={chatLoading}
+                        onToggleComplete={toggleBlockComplete}
+                        onOpenFile={openFile}
+                        onChatInputChange={setChatInput}
+                        onSendChat={sendChat}
+                        onGoPrev={goToPreviousBlock}
+                        onGoNext={goToNextBlock}
+                    />
                 </div>
             </div>
 
@@ -810,17 +902,133 @@ function CodeViewer({ content, filePath, highlightedLines }: {
     );
 }
 
+function MermaidDiagram({ diagram, compact = false }: { diagram: string; compact?: boolean }) {
+    const source = typeof diagram === 'string' ? diagram.trim() : '';
+    const [svg, setSvg] = useState('');
+    const [renderError, setRenderError] = useState<string | null>(null);
+    const stableId = useId().replace(/[^a-zA-Z0-9_-]/g, '');
+    const instanceIdRef = useRef(`forge-mermaid-${stableId}`);
+
+    useEffect(() => {
+        let cancelled = false;
+        if (!source) return;
+
+        async function renderDiagram() {
+            try {
+                const mermaid = await loadMermaidApi();
+                if (cancelled) return;
+                const result = await mermaid.render(instanceIdRef.current, source);
+                if (cancelled) return;
+                setSvg(result.svg || '');
+                setRenderError(null);
+            } catch (err) {
+                if (cancelled) return;
+                const message = err instanceof Error ? err.message : 'Could not render diagram';
+                setRenderError(message);
+                setSvg('');
+            }
+        }
+
+        void renderDiagram();
+        return () => {
+            cancelled = true;
+        };
+    }, [source]);
+
+    if (!source) {
+        return null;
+    }
+
+    if (renderError) {
+        return (
+            <div className={`mermaid-fallback ${compact ? 'compact' : ''}`.trim()}>
+                <div className="mermaid-error">{renderError}</div>
+                <pre>{diagram}</pre>
+            </div>
+        );
+    }
+
+    if (!svg) {
+        return <div className="mermaid-loading">Rendering diagram…</div>;
+    }
+
+    return (
+        <div
+            className={`mermaid-render ${compact ? 'compact' : ''}`.trim()}
+            dangerouslySetInnerHTML={{ __html: svg }}
+        />
+    );
+}
+
+function AssistantMessageContent({ content }: { content: string }) {
+    const segments = useMemo(() => splitContentByMermaid(content), [content]);
+
+    return (
+        <div className="assistant-message-content">
+            {segments.map((segment, index) => {
+                if (segment.kind === 'mermaid') {
+                    return (
+                        <div key={`${segment.kind}-${index}`} className="chat-mermaid-block">
+                            <MermaidDiagram diagram={segment.value} compact />
+                        </div>
+                    );
+                }
+
+                if (!segment.value.trim()) return null;
+                return (
+                    <div
+                        key={`${segment.kind}-${index}`}
+                        dangerouslySetInnerHTML={{ __html: simpleMarkdown(segment.value) }}
+                    />
+                );
+            })}
+        </div>
+    );
+}
+
+function splitContentByMermaid(content: string): { kind: 'text' | 'mermaid'; value: string }[] {
+    if (typeof content !== 'string' || !content) return [{ kind: 'text', value: '' }];
+
+    const segments: { kind: 'text' | 'mermaid'; value: string }[] = [];
+    const regex = /```mermaid\s*([\s\S]*?)```/gi;
+    let cursor = 0;
+    let match: RegExpExecArray | null = regex.exec(content);
+
+    while (match) {
+        const start = match.index;
+        if (start > cursor) {
+            segments.push({ kind: 'text', value: content.slice(cursor, start) });
+        }
+
+        const diagram = typeof match[1] === 'string' ? match[1].trim() : '';
+        if (diagram) {
+            segments.push({ kind: 'mermaid', value: diagram });
+        }
+
+        cursor = regex.lastIndex;
+        match = regex.exec(content);
+    }
+
+    if (cursor < content.length) {
+        segments.push({ kind: 'text', value: content.slice(cursor) });
+    }
+
+    if (segments.length === 0) {
+        segments.push({ kind: 'text', value: content });
+    }
+
+    return segments;
+}
+
 // ---- Mini Block List for sidebar ----
-function MiniBlockList({ blocks, activeBlock, completedBlocks, role, onSelectBlock }: {
+function MiniBlockList({ blocks, activeBlock, completedBlocks, unlockedBlockIndex, onSelectBlock }: {
     blocks: StoryboardBlock[];
     activeBlock: StoryboardBlock | null;
     completedBlocks: Set<string>;
-    role: Role;
+    unlockedBlockIndex: number;
     onSelectBlock: (block: StoryboardBlock) => void;
 }) {
-    const filtered = blocks.filter(b => role === 'fullstack' || b.roleTags?.includes(role));
-
-    if (filtered.length === 0) {
+    if (blocks.length === 0) {
         return (
             <div className="empty-state">
                 <div className="empty-state-icon"><Codicon name="symbol-structure" /></div>
@@ -833,121 +1041,80 @@ function MiniBlockList({ blocks, activeBlock, completedBlocks, role, onSelectBlo
 
     return (
         <div className="block-list">
-            {filtered.map(block => (
-                <div
-                    key={block.blockId}
-                    className={`block-item ${activeBlock?.blockId === block.blockId ? 'active' : ''} ${completedBlocks.has(block.blockId) ? 'completed' : ''}`}
-                    onClick={() => onSelectBlock(block)}
-                    style={{ padding: '6px 8px' }}
-                >
-                    <div className="block-check" style={{ width: 16, height: 16, fontSize: 9 }}>
-                        {completedBlocks.has(block.blockId) && '✓'}
-                    </div>
-                    <div className="block-info">
-                        <div className="block-title" style={{ fontSize: 12 }}>{block.title}</div>
-                    </div>
-                </div>
-            ))}
+            {blocks.map((block, index) => {
+                const isCompleted = completedBlocks.has(block.blockId);
+                const isLocked = index > unlockedBlockIndex;
+                const isActive = activeBlock?.blockId === block.blockId;
+
+                return (
+                    <button
+                        type="button"
+                        key={block.blockId}
+                        className={`block-item ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''} ${isLocked ? 'locked' : ''}`}
+                        onClick={() => onSelectBlock(block)}
+                        disabled={isLocked}
+                        style={{ padding: '6px 8px' }}
+                    >
+                        <div className="block-check" style={{ width: 16, height: 16, fontSize: 9 }}>
+                            {isCompleted ? '✓' : (isLocked ? <Codicon name="lock" /> : index + 1)}
+                        </div>
+                        <div className="block-info">
+                            <div className="block-title" style={{ fontSize: 12 }}>{block.title}</div>
+                            {isLocked && (
+                                <div className="block-locked-note">Complete the previous block to unlock.</div>
+                            )}
+                        </div>
+                    </button>
+                );
+            })}
         </div>
     );
 }
 
 // ---- Storyboard Panel ----
-function StoryboardPanel({ blocks, activeBlock, completedBlocks, role, setiTheme, onSelectBlock, onToggleComplete, onOpenFile }: {
+function StoryboardPanel({
+    blocks,
+    activeBlock,
+    activeBlockIndex,
+    unlockedBlockIndex,
+    completedBlocks,
+    completedCount,
+    progressPercent,
+    nextBlockLocked,
+    canGoPrev,
+    canGoNext,
+    setiTheme,
+    chatMessages,
+    chatInput,
+    chatLoading,
+    onToggleComplete,
+    onOpenFile,
+    onChatInputChange,
+    onSendChat,
+    onGoPrev,
+    onGoNext,
+}: {
     blocks: StoryboardBlock[];
     activeBlock: StoryboardBlock | null;
+    activeBlockIndex: number;
+    unlockedBlockIndex: number;
     completedBlocks: Set<string>;
-    role: Role;
+    completedCount: number;
+    progressPercent: number;
+    nextBlockLocked: boolean;
+    canGoPrev: boolean;
+    canGoNext: boolean;
     setiTheme: SetiIconTheme | null;
-    onSelectBlock: (block: StoryboardBlock) => void;
+    chatMessages: ChatMessage[];
+    chatInput: string;
+    chatLoading: boolean;
     onToggleComplete: (blockId: string) => void;
     onOpenFile: (path: string) => void;
+    onChatInputChange: (value: string) => void;
+    onSendChat: () => void;
+    onGoPrev: () => void;
+    onGoNext: () => void;
 }) {
-    // Show block detail if one is active
-    if (activeBlock && blocks.find(b => b.blockId === activeBlock.blockId)) {
-        return (
-            <div className="block-detail animate-fade-in">
-                <button
-                    className="btn-ghost"
-                    onClick={() => onSelectBlock(blocks[0])}
-                    style={{ marginBottom: 12 }}
-                >
-                    ← Back to blocks
-                </button>
-
-                <div className="block-detail-header">
-                    <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                        {activeBlock.roleTags?.map(tag => (
-                            <span key={tag} className={`badge badge-${tag}`}>{tag}</span>
-                        ))}
-                        <span className="block-time">~{activeBlock.estimatedMinutes} min</span>
-                    </div>
-                    <div className="block-detail-title">{activeBlock.title}</div>
-                    <div className="block-detail-objective">{activeBlock.objective}</div>
-                </div>
-
-                {/* Explanation */}
-                <div className="block-detail-section">
-                    <div className="block-detail-section-title">Explanation</div>
-                    <div className="markdown-content">
-                        <div dangerouslySetInnerHTML={{ __html: simpleMarkdown(activeBlock.explanationMarkdown || '') }} />
-                    </div>
-                </div>
-
-                {/* Mermaid Diagram */}
-                {activeBlock.mermaidDiagram && (
-                    <div className="block-detail-section">
-                        <div className="block-detail-section-title">Diagram</div>
-                        <div className="mermaid-container">
-                            <pre style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                                {activeBlock.mermaidDiagram}
-                            </pre>
-                        </div>
-                    </div>
-                )}
-
-                {/* Key Files */}
-                {activeBlock.keyFiles?.length > 0 && (
-                    <div className="block-detail-section">
-                        <div className="block-detail-section-title">Key Files</div>
-                        <div className="block-files-list">
-                            {activeBlock.keyFiles.map(f => (
-                                <div key={f} className="block-file-link" onClick={() => onOpenFile(f)}>
-                                    <SetiIcon theme={setiTheme} kind="file" name={getFileName(f)} className="inline-file-icon" /> {f}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* Key Takeaways */}
-                {activeBlock.keyTakeaways && activeBlock.keyTakeaways.length > 0 && (
-                    <div className="block-detail-section">
-                        <div className="block-detail-section-title">Key Takeaways</div>
-                        <div className="takeaway-list">
-                            {activeBlock.keyTakeaways.map((t, i) => (
-                                <div key={i} className="takeaway-item">
-                                    <span className="takeaway-icon">✓</span>
-                                    <span>{t}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* Mark Complete */}
-                <button
-                    className={completedBlocks.has(activeBlock.blockId) ? 'btn-secondary' : 'btn-primary'}
-                    onClick={() => onToggleComplete(activeBlock.blockId)}
-                    style={{ width: '100%', marginTop: 16 }}
-                >
-                    {completedBlocks.has(activeBlock.blockId) ? '↺ Mark Incomplete' : '✓ Mark as Complete'}
-                </button>
-            </div>
-        );
-    }
-
-    // Empty state
     if (blocks.length === 0) {
         return (
             <div className="empty-state" style={{ height: '100%' }}>
@@ -960,47 +1127,160 @@ function StoryboardPanel({ blocks, activeBlock, completedBlocks, role, setiTheme
         );
     }
 
-    // Block list view
+    const fallbackBlock = blocks[Math.max(0, Math.min(unlockedBlockIndex, blocks.length - 1))];
+    const currentBlock = (activeBlock && blocks.find(block => block.blockId === activeBlock.blockId)) || fallbackBlock;
+    const currentBlockComplete = completedBlocks.has(currentBlock.blockId);
+
     return (
-        <div className="block-list">
-            {blocks
-                .filter(b => role === 'fullstack' || b.roleTags?.includes(role))
-                .map(block => (
-                    <div
-                        key={block.blockId}
-                        className={`block-item ${activeBlock?.blockId === block.blockId ? 'active' : ''} ${completedBlocks.has(block.blockId) ? 'completed' : ''}`}
-                        onClick={() => onSelectBlock(block)}
-                    >
-                        <div
-                            className="block-check"
-                            onClick={(e) => { e.stopPropagation(); onToggleComplete(block.blockId); }}
-                        >
-                            {completedBlocks.has(block.blockId) && '✓'}
-                        </div>
-                        <div className="block-info">
-                            <div className="block-title">{block.title}</div>
-                            <div className="block-objective">{block.objective}</div>
-                            <div className="block-tags">
-                                {block.roleTags?.map(tag => (
-                                    <span key={tag} className={`badge badge-${tag}`}>{tag}</span>
-                                ))}
-                                <span className="block-time">~{block.estimatedMinutes}m</span>
-                            </div>
-                        </div>
+        <div className="block-detail animate-fade-in">
+            <div className="block-navigation">
+                <button type="button" className="btn-secondary block-nav-btn" onClick={onGoPrev} disabled={!canGoPrev}>
+                    ← Previous
+                </button>
+                <div className="block-nav-status">
+                    {Math.max(1, activeBlockIndex + 1)} / {blocks.length}
+                </div>
+                <button type="button" className="btn-secondary block-nav-btn" onClick={onGoNext} disabled={!canGoNext}>
+                    Next →
+                </button>
+            </div>
+
+            {nextBlockLocked && (
+                <div className="sequential-hint">
+                    <Codicon name="lock" />
+                    Complete this block to unlock the next step.
+                </div>
+            )}
+
+            <div className="block-detail-header">
+                <div className="block-detail-meta">
+                    <span className="block-time">Step {Math.max(1, activeBlockIndex + 1)} of {blocks.length}</span>
+                    <span className="block-time">~{currentBlock.estimatedMinutes} min</span>
+                </div>
+                <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                    {currentBlock.roleTags?.map(tag => (
+                        <span key={tag} className={`badge badge-${tag}`}>{tag}</span>
+                    ))}
+                </div>
+                <div className="block-detail-title">{currentBlock.title}</div>
+                <div className="block-detail-objective">{currentBlock.objective}</div>
+            </div>
+
+            <div className="block-detail-section">
+                <div className="block-detail-section-title">Explanation</div>
+                <div className="markdown-content">
+                    <div dangerouslySetInnerHTML={{ __html: simpleMarkdown(currentBlock.explanationMarkdown || '') }} />
+                </div>
+            </div>
+
+            {currentBlock.mermaidDiagram && (
+                <div className="block-detail-section">
+                    <div className="block-detail-section-title">Diagram</div>
+                    <div className="mermaid-container">
+                        <MermaidDiagram diagram={currentBlock.mermaidDiagram} />
                     </div>
-                ))}
+                </div>
+            )}
+
+            {currentBlock.keyFiles?.length > 0 && (
+                <div className="block-detail-section">
+                    <div className="block-detail-section-title">Key Files</div>
+                    <div className="block-files-list">
+                        {currentBlock.keyFiles.map(filePath => (
+                            <button key={filePath} type="button" className="block-file-link" onClick={() => onOpenFile(filePath)}>
+                                <SetiIcon theme={setiTheme} kind="file" name={getFileName(filePath)} className="inline-file-icon" /> {filePath}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {currentBlock.resources?.length > 0 && (
+                <div className="block-detail-section">
+                    <div className="block-detail-section-title">Resources</div>
+                    <div className="resource-list">
+                        {currentBlock.resources.map((resource, index) => {
+                            const parsed = parseResource(resource);
+                            if (!parsed.url) {
+                                return (
+                                    <span key={`${resource}-${index}`} className="resource-link resource-link-muted">
+                                        <Codicon name="link-external" />
+                                        {parsed.label}
+                                    </span>
+                                );
+                            }
+
+                            return (
+                                <a
+                                    key={`${resource}-${index}`}
+                                    href={parsed.url}
+                                    className="resource-link"
+                                    target="_blank"
+                                    rel="noreferrer noopener"
+                                >
+                                    <Codicon name="link-external" />
+                                    {parsed.label}
+                                </a>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {currentBlock.keyTakeaways && currentBlock.keyTakeaways.length > 0 && (
+                <div className="block-detail-section">
+                    <div className="block-detail-section-title">Key Takeaways</div>
+                    <div className="takeaway-list">
+                        {currentBlock.keyTakeaways.map((takeaway, i) => (
+                            <div key={i} className="takeaway-item">
+                                <span className="takeaway-icon">✓</span>
+                                <span>{takeaway}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            <div className="block-detail-section">
+                <div className="block-detail-section-title">Chat About This Block</div>
+                <ChatPanel
+                    messages={chatMessages}
+                    input={chatInput}
+                    loading={chatLoading}
+                    activeBlock={currentBlock}
+                    onInputChange={onChatInputChange}
+                    onSend={onSendChat}
+                    embedded
+                />
+            </div>
+
+            <button
+                className={currentBlockComplete ? 'btn-secondary' : 'btn-primary'}
+                onClick={() => onToggleComplete(currentBlock.blockId)}
+                style={{ width: '100%', marginTop: 16 }}
+            >
+                {currentBlockComplete ? '↺ Mark Incomplete' : '✓ Mark as Complete'}
+            </button>
+
+            <div className="guided-bottom-progress">
+                <div className="guided-bottom-progress-meta">{completedCount} of {blocks.length} completed</div>
+                <div className="progress-bar block-progress-bar">
+                    <div className="progress-bar-fill" style={{ width: `${progressPercent}%` }} />
+                </div>
+            </div>
         </div>
     );
 }
 
 // ---- Chat Panel ----
-function ChatPanel({ messages, input, loading, activeBlock, onInputChange, onSend }: {
+function ChatPanel({ messages, input, loading, activeBlock, onInputChange, onSend, embedded = false }: {
     messages: ChatMessage[];
     input: string;
     loading: boolean;
     activeBlock: StoryboardBlock | null;
     onInputChange: (value: string) => void;
     onSend: () => void;
+    embedded?: boolean;
 }) {
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -1009,16 +1289,19 @@ function ChatPanel({ messages, input, loading, activeBlock, onInputChange, onSen
     }, [messages]);
 
     return (
-        <div className="chat-container">
+        <div className={`chat-container ${embedded ? 'embedded' : ''}`.trim()}>
             {!activeBlock ? (
                 <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
                     <p>Select a storyboard block to start chatting about it.</p>
                 </div>
             ) : (
                 <>
-                    <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--panel-border)', fontSize: 12, color: 'var(--text-muted)' }}>
-                        Chatting about: <strong style={{ color: 'var(--accent)' }}>{activeBlock.title}</strong>
-                    </div>
+                    {!embedded && (
+                        <div className="chat-header">
+                            <span className="chat-header-label">Chat</span>
+                            <strong style={{ color: 'var(--accent)' }}>{activeBlock.title}</strong>
+                        </div>
+                    )}
 
                     <div className="chat-messages">
                         {messages.length === 0 && (
@@ -1028,13 +1311,14 @@ function ChatPanel({ messages, input, loading, activeBlock, onInputChange, onSen
                                     <div style={{ marginTop: 12 }}>
                                         <div style={{ fontWeight: 600, marginBottom: 4 }}>Suggested questions:</div>
                                         {activeBlock.suggestedQuestions.map((q, i) => (
-                                            <div
+                                            <button
                                                 key={i}
-                                                style={{ cursor: 'pointer', color: 'var(--accent)', margin: '4px 0' }}
+                                                type="button"
+                                                className="chat-suggested-question"
                                                 onClick={() => onInputChange(q)}
                                             >
                                                 → {q}
-                                            </div>
+                                            </button>
                                         ))}
                                     </div>
                                 )}
@@ -1048,7 +1332,7 @@ function ChatPanel({ messages, input, loading, activeBlock, onInputChange, onSen
                                 </div>
                                 <div className="chat-message-content">
                                     {msg.role === 'assistant' ? (
-                                        <div dangerouslySetInnerHTML={{ __html: simpleMarkdown(msg.content) }} />
+                                        <AssistantMessageContent content={msg.content} />
                                     ) : (
                                         msg.content
                                     )}
@@ -1174,6 +1458,60 @@ function CommandPalette({ onClose, onToggleSidebar, onSwitchRole, fileTree, seti
 
 // =============== Helpers ===============
 
+async function loadMermaidApi(): Promise<MermaidApi> {
+    if (typeof window === 'undefined') {
+        throw new Error('Mermaid is only available in the browser');
+    }
+
+    if (window.mermaid) {
+        initializeMermaid(window.mermaid);
+        return window.mermaid;
+    }
+
+    if (!window.__forgeMermaidLoader) {
+        window.__forgeMermaidLoader = new Promise<MermaidApi>((resolve, reject) => {
+            const existing = document.querySelector<HTMLScriptElement>('script[data-forge-mermaid="true"]');
+            if (existing && window.mermaid) {
+                initializeMermaid(window.mermaid);
+                resolve(window.mermaid);
+                return;
+            }
+
+            const script = existing || document.createElement('script');
+            script.src = MERMAID_CDN_URL;
+            script.async = true;
+            script.setAttribute('data-forge-mermaid', 'true');
+
+            script.onload = () => {
+                if (!window.mermaid) {
+                    reject(new Error('Mermaid failed to initialize'));
+                    return;
+                }
+                initializeMermaid(window.mermaid);
+                resolve(window.mermaid);
+            };
+            script.onerror = () => reject(new Error('Failed to load Mermaid'));
+
+            if (!existing) {
+                document.head.appendChild(script);
+            }
+        });
+    }
+
+    return window.__forgeMermaidLoader;
+}
+
+function initializeMermaid(mermaidApi: MermaidApi) {
+    if (window.__forgeMermaidInitialized) return;
+
+    mermaidApi.initialize({
+        startOnLoad: false,
+        theme: 'dark',
+        securityLevel: 'loose',
+    });
+    window.__forgeMermaidInitialized = true;
+}
+
 function getFileName(path: string): string {
     return path.split('/').pop() || path;
 }
@@ -1185,8 +1523,31 @@ function sortTreeNodes(a: FileNode, b: FileNode): number {
     return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
 }
 
-function Codicon({ name, className = '' }: { name: string; className?: string }) {
-    return <i className={`codicon codicon-${name} ${className}`.trim()} aria-hidden="true" />;
+function normalizeRoleToken(value: string): string {
+    return value
+        .toLowerCase()
+        .replace(/[\s_-]+/g, '');
+}
+
+function blockMatchesRole(block: StoryboardBlock, role: Role): boolean {
+    if (role === 'fullstack') return true;
+    const tags = Array.isArray(block.roleTags) ? block.roleTags : [];
+    if (tags.length === 0) return false;
+
+    const normalizedRole = normalizeRoleToken(role);
+    return tags.some(tag => {
+        const token = normalizeRoleToken(String(tag));
+        if (!token) return false;
+        if (token === normalizedRole) return true;
+        if (normalizedRole === 'frontend' && token.includes('front')) return true;
+        if (normalizedRole === 'backend' && token.includes('back')) return true;
+        if (normalizedRole === 'infra' && (token.includes('infra') || token.includes('devops') || token.includes('platform'))) return true;
+        return false;
+    });
+}
+
+function Codicon({ name, className = '', style }: { name: string; className?: string; style?: CSSProperties }) {
+    return <i className={`codicon codicon-${name} ${className}`.trim()} style={style} aria-hidden="true" />;
 }
 
 function SetiIcon({ theme, kind, name, className = '' }: {
@@ -1195,6 +1556,11 @@ function SetiIcon({ theme, kind, name, className = '' }: {
     name: string;
     className?: string;
 }) {
+    const vscodeLikeIcon = resolveVscodeLikeIcon(kind, name);
+    if (vscodeLikeIcon) {
+        return renderVscodeLikeIcon(vscodeLikeIcon, className);
+    }
+
     const iconMeta = resolveSetiIcon(theme, kind, name);
 
     if (iconMeta?.glyph) {
@@ -1211,6 +1577,92 @@ function SetiIcon({ theme, kind, name, className = '' }: {
     }
 
     return <Codicon name="file" className={className} />;
+}
+
+function renderVscodeLikeIcon(icon: VscodeLikeIcon, className = '') {
+    if (icon.type === 'badge') {
+        return (
+            <span
+                className={`vscode-badge-icon ${className}`.trim()}
+                style={{ color: icon.color, backgroundColor: icon.background }}
+            >
+                {icon.label}
+            </span>
+        );
+    }
+
+    return (
+        <span className={`vscode-codicon-icon ${className}`.trim()} style={{ color: icon.color }}>
+            <Codicon name={icon.codicon || 'file'} />
+            {icon.dotColor && <span className="vscode-codicon-dot" style={{ backgroundColor: icon.dotColor }} />}
+        </span>
+    );
+}
+
+function resolveVscodeLikeIcon(kind: 'file' | 'folder' | 'folderExpanded', name: string): VscodeLikeIcon | null {
+    const lowerName = name.toLowerCase();
+
+    if (kind === 'folder' || kind === 'folderExpanded') {
+        const folderVisuals: Record<string, { color: string; dotColor?: string }> = {
+            '.next': { color: '#5ea1ff', dotColor: '#3b82f6' },
+            'node_modules': { color: '#73d291', dotColor: '#22c55e' },
+            'public': { color: '#b49efc', dotColor: '#8b5cf6' },
+            src: { color: '#ffb86c', dotColor: '#f97316' },
+            '.git': { color: '#f38ba8', dotColor: '#ef4444' },
+        };
+
+        const visual = folderVisuals[lowerName];
+        return {
+            type: 'codicon',
+            codicon: kind === 'folderExpanded' ? 'folder-opened' : 'folder',
+            color: visual?.color || '#dcb67a',
+            dotColor: visual?.dotColor,
+        };
+    }
+
+    const fileNameMap: Record<string, VscodeLikeIcon> = {
+        'package.json': { type: 'badge', label: 'NPM', color: '#051b11', background: '#78e5a9' },
+        'package-lock.json': { type: 'badge', label: 'LCK', color: '#f4f5f7', background: '#475569' },
+        'tsconfig.json': { type: 'badge', label: 'TS', color: '#ffffff', background: '#3178c6' },
+        'next.config.ts': { type: 'badge', label: 'NX', color: '#ffffff', background: '#3f3f46' },
+        'next.config.js': { type: 'badge', label: 'NX', color: '#ffffff', background: '#3f3f46' },
+        '.gitignore': { type: 'badge', label: 'GIT', color: '#111827', background: '#fb923c' },
+        '.env': { type: 'badge', label: 'ENV', color: '#0f172a', background: '#86efac' },
+        '.env.local': { type: 'badge', label: 'ENV', color: '#0f172a', background: '#86efac' },
+        'readme.md': { type: 'badge', label: 'MD', color: '#f8fafc', background: '#2563eb' },
+        'license': { type: 'badge', label: 'TXT', color: '#f8fafc', background: '#64748b' },
+    };
+
+    const byFileName = fileNameMap[lowerName];
+    if (byFileName) return byFileName;
+
+    const ext = lowerName.endsWith('.d.ts')
+        ? 'd.ts'
+        : (lowerName.split('.').pop() || '');
+
+    const extensionMap: Record<string, VscodeLikeIcon> = {
+        ts: { type: 'badge', label: 'TS', color: '#ffffff', background: '#3178c6' },
+        'd.ts': { type: 'badge', label: 'DT', color: '#ffffff', background: '#2563eb' },
+        tsx: { type: 'badge', label: 'TSX', color: '#ffffff', background: '#2563eb' },
+        js: { type: 'badge', label: 'JS', color: '#111827', background: '#facc15' },
+        jsx: { type: 'badge', label: 'JSX', color: '#111827', background: '#fcd34d' },
+        json: { type: 'badge', label: '{}', color: '#111827', background: '#f59e0b' },
+        md: { type: 'badge', label: 'MD', color: '#f8fafc', background: '#2563eb' },
+        css: { type: 'badge', label: 'CSS', color: '#f8fafc', background: '#0ea5e9' },
+        scss: { type: 'badge', label: 'SC', color: '#f8fafc', background: '#ec4899' },
+        html: { type: 'badge', label: 'HTML', color: '#111827', background: '#fb923c' },
+        yaml: { type: 'badge', label: 'YML', color: '#f8fafc', background: '#64748b' },
+        yml: { type: 'badge', label: 'YML', color: '#f8fafc', background: '#64748b' },
+        svg: { type: 'badge', label: 'SVG', color: '#111827', background: '#a3e635' },
+        py: { type: 'badge', label: 'PY', color: '#f8fafc', background: '#3776ab' },
+        go: { type: 'badge', label: 'GO', color: '#0f172a', background: '#7dd3fc' },
+        rs: { type: 'badge', label: 'RS', color: '#f8fafc', background: '#7c3aed' },
+        java: { type: 'badge', label: 'JV', color: '#f8fafc', background: '#ea580c' },
+        sh: { type: 'badge', label: 'SH', color: '#f8fafc', background: '#334155' },
+        sql: { type: 'badge', label: 'SQL', color: '#f8fafc', background: '#0f766e' },
+    };
+
+    return extensionMap[ext] || null;
 }
 
 function resolveSetiIcon(theme: SetiIconTheme | null | undefined, kind: 'file' | 'folder' | 'folderExpanded', name: string) {
@@ -1367,12 +1819,66 @@ function getFileList(node: FileNode | null): string[] {
     return results;
 }
 
+function parseResource(resource: unknown): { label: string; url?: string } {
+    if (resource == null) return { label: 'Reference' };
+
+    if (typeof resource === 'string') {
+        return parseResourceString(resource);
+    }
+
+    if (typeof resource === 'number' || typeof resource === 'boolean') {
+        return { label: String(resource) };
+    }
+
+    if (Array.isArray(resource)) {
+        const firstUsable = resource.find(item => item != null);
+        return parseResource(firstUsable ?? 'Reference');
+    }
+
+    if (typeof resource === 'object') {
+        const record = resource as Record<string, unknown>;
+        const url = typeof record.url === 'string'
+            ? record.url
+            : (typeof record.href === 'string' ? record.href : undefined);
+        const label = typeof record.label === 'string'
+            ? record.label
+            : (typeof record.title === 'string' ? record.title : undefined);
+
+        if (label || url) {
+            return parseResourceString(label && url ? `[${label}](${url})` : (label || url || 'Reference'));
+        }
+    }
+
+    return { label: 'Reference' };
+}
+
+function parseResourceString(raw: string): { label: string; url?: string } {
+    const trimmed = raw.trim();
+    if (!trimmed) return { label: 'Reference' };
+
+    const markdownLink = trimmed.match(/^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/i);
+    if (markdownLink) {
+        return { label: markdownLink[1], url: markdownLink[2] };
+    }
+
+    const firstUrl = trimmed.match(/https?:\/\/[^\s)]+/i);
+    if (firstUrl) {
+        const normalizedUrl = firstUrl[0].replace(/[),.;]+$/, '');
+        const label = trimmed.replace(firstUrl[0], '').replace(/^[\s:–-]+|[\s:–-]+$/g, '');
+        return { label: label || normalizedUrl, url: normalizedUrl };
+    }
+
+    return { label: trimmed };
+}
+
 /** Very simple markdown-to-HTML (bold, italic, code, headings, links) */
 function simpleMarkdown(md: string): string {
     return md
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
+        .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer noopener">$1</a>')
+        .replace(/(^|[\s(])(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noreferrer noopener">$2</a>')
         .replace(/^### (.+)$/gm, '<h3>$1</h3>')
         .replace(/^## (.+)$/gm, '<h2>$1</h2>')
         .replace(/^# (.+)$/gm, '<h1>$1</h1>')

@@ -22,25 +22,43 @@ export default function LandingPage() {
     setProgress(10);
 
     try {
-      // Step 1: Ingest
-      const { repoId } = await api.repos.ingest(gitUrl.trim());
-      setStatus('Repository cloned. Parsing modules...');
-      setProgress(30);
+      // Step 1: Ingest (or reuse an exact cached build if available)
+      const ingestResult = await api.repos.ingest(gitUrl.trim());
+      const { repoId } = ingestResult;
+      let storyboardId = ingestResult.storyboardId || null;
 
-      // Step 2: Parse
-      await api.repos.parse(repoId);
-      setStatus('Modules parsed. Generating storyboard...');
-      setProgress(50);
+      if (ingestResult.cached && ingestResult.status === 'PARSED' && storyboardId) {
+        setStatus('Cached build found. Launching workspace...');
+        setProgress(100);
+        setTimeout(() => {
+          router.push(`/workspace/${repoId}?storyboard=${storyboardId}`);
+        }, 300);
+        return;
+      }
 
-      // Step 3: Generate storyboard
-      setProgress(60);
-      const { storyboardId } = await api.storyboard.generate(repoId);
-      setStatus('Storyboard generated! Launching workspace...');
+      // Step 2: Parse (skip if already parsed)
+      if (ingestResult.status !== 'PARSED') {
+        setStatus('Repository cloned. Parsing modules...');
+        setProgress(35);
+        await api.repos.parse(repoId);
+      }
+
+      // Step 3: Generate storyboard (skip if one already exists on cached repo)
+      if (!storyboardId) {
+        setStatus('Modules parsed. Generating storyboard...');
+        setProgress(65);
+        const generated = await api.storyboard.generate(repoId);
+        storyboardId = generated.storyboardId;
+      }
+
+      setStatus('Storyboard ready! Launching workspace...');
       setProgress(100);
 
       // Navigate to workspace
       setTimeout(() => {
-        router.push(`/workspace/${repoId}?storyboard=${storyboardId}`);
+        router.push(storyboardId
+          ? `/workspace/${repoId}?storyboard=${storyboardId}`
+          : `/workspace/${repoId}`);
       }, 500);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'An unknown error occurred';

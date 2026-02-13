@@ -1,29 +1,58 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, type CSSProperties, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useId, useMemo, useRef, type CSSProperties, type ReactNode } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import type { Repo, FileNode, Storyboard, StoryboardBlock, ChatMessage, Role } from '@/lib/types';
 import { ROLES } from '@/lib/types';
 import '../../workspace.css';
 
-type IconName =
-    | 'files'
-    | 'search'
-    | 'storyboard'
-    | 'settings'
-    | 'account'
-    | 'chat'
-    | 'chevron-right'
-    | 'chevron-down'
-    | 'folder'
-    | 'folder-open'
-    | 'close'
-    | 'warning'
-    | 'command'
-    | 'spark'
-    | 'vscode';
+interface SetiIconDefinition {
+    fontCharacter?: string;
+    fontColor?: string;
+}
 
+interface SetiIconTheme {
+    file?: string;
+    folder?: string;
+    folderExpanded?: string;
+    rootFolder?: string;
+    rootFolderExpanded?: string;
+    fileExtensions?: Record<string, string>;
+    fileNames?: Record<string, string>;
+    folderNames?: Record<string, string>;
+    folderNamesExpanded?: Record<string, string>;
+    iconDefinitions?: Record<string, SetiIconDefinition>;
+}
+
+interface VscodeLikeIcon {
+    type: 'badge' | 'codicon';
+    label?: string;
+    codicon?: string;
+    color?: string;
+    background?: string;
+    dotColor?: string;
+}
+
+interface MermaidRenderResult {
+    svg: string;
+}
+
+interface MermaidApi {
+    initialize: (config: Record<string, unknown>) => void;
+    render: (id: string, diagram: string) => Promise<MermaidRenderResult>;
+}
+
+declare global {
+    interface Window {
+        mermaid?: MermaidApi;
+        __forgeMermaidLoader?: Promise<MermaidApi>;
+        __forgeMermaidInitialized?: boolean;
+    }
+}
+
+const SETI_THEME_URL = 'https://cdn.jsdelivr.net/gh/microsoft/vscode@main/extensions/theme-seti/icons/vs-seti-icon-theme.json';
+const MERMAID_CDN_URL = 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js';
 const FILE_CONTENT_CACHE_LIMIT = 80;
 const PREFETCH_BATCH_SIZE = 20;
 const PREFETCH_TREE_SAMPLE_SIZE = 16;
@@ -50,7 +79,6 @@ export default function WorkspacePage() {
     const [highlightedLines, setHighlightedLines] = useState<Set<number>>(new Set());
 
     // Panel state
-    const [rightTab, setRightTab] = useState<'storyboard' | 'chat'>('storyboard');
     const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
     const [chatInput, setChatInput] = useState('');
     const [chatLoading, setChatLoading] = useState(false);
@@ -63,9 +91,27 @@ export default function WorkspacePage() {
     const [showCommandPalette, setShowCommandPalette] = useState(false);
     const [treeFilter, setTreeFilter] = useState('');
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [setiTheme, setSetiTheme] = useState<SetiIconTheme | null>(null);
     const fileContentCacheRef = useRef<Map<string, string>>(new Map());
     const inFlightFileRequestsRef = useRef<Map<string, Promise<string>>>(new Map());
     const prefetchedPathsRef = useRef<Set<string>>(new Set());
+
+    useEffect(() => {
+        let isMounted = true;
+
+        fetch(SETI_THEME_URL)
+            .then(res => res.json())
+            .then((theme: SetiIconTheme) => {
+                if (isMounted) setSetiTheme(theme);
+            })
+            .catch(() => {
+                if (isMounted) setSetiTheme(null);
+            });
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
 
     // ---- Add keyboard shortcuts ----
     useEffect(() => {
@@ -211,9 +257,6 @@ export default function WorkspacePage() {
                 try {
                     const sb = await api.storyboard.get(storyboardId);
                     setStoryboard(sb);
-                    if (sb.blocks.length > 0) {
-                        setActiveBlock(sb.blocks[0]);
-                    }
                 } catch (err) {
                     const msg = err instanceof Error ? err.message : 'Failed to load storyboard';
                     loadErrors.push(`Storyboard: ${msg}`);
@@ -279,16 +322,117 @@ export default function WorkspacePage() {
         }
     }, [activeFileIndex]);
 
+    const visibleBlocks = useMemo(() => {
+        const sorted = [...(storyboard?.blocks || [])]
+            .sort((a, b) => a.order - b.order);
+
+        if (role === 'fullstack') return sorted;
+
+        const filtered = sorted.filter(block => blockMatchesRole(block, role));
+        return filtered.length > 0 ? filtered : sorted;
+    }, [storyboard, role]);
+
+    const firstIncompleteIndex = visibleBlocks.findIndex(block => !completedBlocks.has(block.blockId));
+    const unlockedBlockIndex = visibleBlocks.length === 0
+        ? -1
+        : (firstIncompleteIndex === -1 ? visibleBlocks.length - 1 : firstIncompleteIndex);
+    const activeBlockIndex = activeBlock
+        ? visibleBlocks.findIndex(block => block.blockId === activeBlock.blockId)
+        : -1;
+    const totalBlocks = visibleBlocks.length;
+    const completedCount = visibleBlocks.filter(block => completedBlocks.has(block.blockId)).length;
+    const progressPercent = totalBlocks > 0 ? (completedCount / totalBlocks) * 100 : 0;
+    const activeBlockCompleted = activeBlock ? completedBlocks.has(activeBlock.blockId) : false;
+    const canGoPrev = activeBlockIndex > 0;
+    const canGoNext = (
+        activeBlockIndex >= 0
+        && activeBlockIndex < totalBlocks - 1
+        && activeBlockCompleted
+    );
+    const nextBlockLocked = Boolean(
+        activeBlockIndex >= 0
+        && activeBlockIndex < totalBlocks - 1
+        && activeBlock
+        && !activeBlockCompleted
+    );
+
+    const activateBlock = useCallback((block: StoryboardBlock) => {
+        setActiveBlock(block);
+        setChatMessages([]);
+        setHighlightedLines(new Set());
+        if (block.keyFiles?.length > 0) {
+            void prefetchFiles(block.keyFiles.slice(0, PREFETCH_BLOCK_SAMPLE_SIZE));
+            void openFile(block.keyFiles[0]);
+        }
+    }, [openFile, prefetchFiles]);
+
+    useEffect(() => {
+        if (visibleBlocks.length === 0) {
+            if (activeBlock !== null) {
+                setActiveBlock(null);
+                setChatMessages([]);
+            }
+            return;
+        }
+
+        const currentIndex = activeBlock
+            ? visibleBlocks.findIndex(block => block.blockId === activeBlock.blockId)
+            : -1;
+
+        if (currentIndex >= 0 && currentIndex <= unlockedBlockIndex) {
+            return;
+        }
+
+        const nextIndex = Math.max(0, Math.min(unlockedBlockIndex, visibleBlocks.length - 1));
+        activateBlock(visibleBlocks[nextIndex]);
+    }, [activeBlock, activateBlock, unlockedBlockIndex, visibleBlocks]);
+
+    // ---- Select block ----
+    const selectBlock = useCallback((block: StoryboardBlock, forceSelection = false) => {
+        const blockIndex = visibleBlocks.findIndex(item => item.blockId === block.blockId);
+        if (blockIndex === -1) return;
+        if (!forceSelection && blockIndex > unlockedBlockIndex) return;
+        activateBlock(block);
+    }, [activateBlock, unlockedBlockIndex, visibleBlocks]);
+
     // ---- Toggle block completion ----
     const toggleBlockComplete = useCallback((blockId: string) => {
+        const blockIndex = visibleBlocks.findIndex(block => block.blockId === blockId);
+        if (blockIndex < 0) return;
+
+        const isCurrentlyComplete = completedBlocks.has(blockId);
+
         setCompletedBlocks(prev => {
             const next = new Set(prev);
-            if (next.has(blockId)) next.delete(blockId);
-            else next.add(blockId);
+
+            if (isCurrentlyComplete) {
+                next.delete(blockId);
+                for (let i = blockIndex + 1; i < visibleBlocks.length; i += 1) {
+                    next.delete(visibleBlocks[i].blockId);
+                }
+            } else {
+                next.add(blockId);
+            }
+
             return next;
         });
-        api.progress.completeBlock('anonymous', repoId, blockId).catch(console.error);
-    }, [repoId]);
+
+        if (!isCurrentlyComplete) {
+            api.progress.completeBlock('anonymous', repoId, blockId).catch(console.error);
+        }
+    }, [completedBlocks, repoId, visibleBlocks]);
+
+    const goToPreviousBlock = useCallback(() => {
+        if (!canGoPrev) return;
+        const prev = visibleBlocks[activeBlockIndex - 1];
+        if (prev) selectBlock(prev, true);
+    }, [activeBlockIndex, canGoPrev, selectBlock, visibleBlocks]);
+
+    const goToNextBlock = useCallback(() => {
+        if (!canGoNext) return;
+        const next = visibleBlocks[activeBlockIndex + 1];
+        if (next) selectBlock(next, true);
+    }, [activeBlockIndex, canGoNext, selectBlock, visibleBlocks]);
 
     // ---- Send chat message ----
     const sendChat = useCallback(async () => {
@@ -313,26 +457,10 @@ export default function WorkspacePage() {
         }
     }, [chatInput, storyboardId, activeBlock]);
 
-    // ---- Select block ----
-    const selectBlock = useCallback((block: StoryboardBlock) => {
-        setActiveBlock(block);
-        setChatMessages([]);
-        setHighlightedLines(new Set());
-        if (block.keyFiles?.length > 0) {
-            void prefetchFiles(block.keyFiles.slice(0, PREFETCH_BLOCK_SAMPLE_SIZE));
-            openFile(block.keyFiles[0]);
-        }
-    }, [openFile, prefetchFiles]);
-
     // ---- Dismiss error ----
     const dismissError = useCallback((index: number) => {
         setErrors(prev => prev.filter((_, i) => i !== index));
     }, []);
-
-    // ---- Compute progress ----
-    const totalBlocks = storyboard?.blocks.length || 0;
-    const completedCount = completedBlocks.size;
-    const progressPercent = totalBlocks > 0 ? (completedCount / totalBlocks) * 100 : 0;
 
     if (loading) {
         return (
@@ -355,7 +483,7 @@ export default function WorkspacePage() {
                         <span className="window-control green" />
                     </div>
                     <div className="topbar-brand">
-                        <AppIcon name="vscode" />
+                        <Codicon name="code" />
                         <span>Forge</span>
                     </div>
                     {repo && (
@@ -392,24 +520,30 @@ export default function WorkspacePage() {
                     onClick={() => { setSidebarView('explorer'); setSidebarCollapsed(false); }}
                     title="Explorer (⌘B)"
                 >
-                    <AppIcon name="files" />
+                    <Codicon name="files" />
                 </div>
                 <div
                     className={`activity-bar-icon ${sidebarView === 'search' && !sidebarCollapsed ? 'active' : ''}`}
                     onClick={() => { setSidebarView('search'); setSidebarCollapsed(false); }}
                     title="Search"
                 >
-                    <AppIcon name="search" />
+                    <Codicon name="search" />
                 </div>
                 <div
                     className={`activity-bar-icon ${sidebarView === 'storyboard' && !sidebarCollapsed ? 'active' : ''}`}
                     onClick={() => { setSidebarView('storyboard'); setSidebarCollapsed(false); }}
                     title="Storyboard Blocks"
                 >
-                    <AppIcon name="storyboard" />
+                    <Codicon name="source-control" />
                     {totalBlocks > 0 && (
                         <span className="badge-count">{totalBlocks}</span>
                     )}
+                </div>
+                <div className="activity-bar-icon" title="Run and Debug">
+                    <Codicon name="run-all" />
+                </div>
+                <div className="activity-bar-icon" title="Extensions">
+                    <Codicon name="extensions" />
                 </div>
                 <div className="activity-bar-spacer" />
                 <div
@@ -417,13 +551,13 @@ export default function WorkspacePage() {
                     onClick={() => setShowCommandPalette(true)}
                     title="Command Palette (⌘K)"
                 >
-                    <AppIcon name="command" />
+                    <Codicon name="command-palette" />
                 </div>
                 <div className="activity-bar-icon" title="Account">
-                    <AppIcon name="account" />
+                    <Codicon name="account" />
                 </div>
                 <div className="activity-bar-icon" title="Settings">
-                    <AppIcon name="settings" />
+                    <Codicon name="settings-gear" />
                 </div>
             </div>
 
@@ -435,7 +569,7 @@ export default function WorkspacePage() {
                             <span>Explorer</span>
                             <div className="sidebar-header-actions" aria-hidden="true">
                                 <button className="icon-btn">
-                                    <AppIcon name="command" />
+                                    <Codicon name="ellipsis" />
                                 </button>
                             </div>
                         </div>
@@ -455,10 +589,11 @@ export default function WorkspacePage() {
                                     onFileHover={prefetchFile}
                                     filter={treeFilter}
                                     activeFilePath={activeFile?.path}
+                                    setiTheme={setiTheme}
                                 />
                             ) : (
                                 <div className="empty-state">
-                                    <div className="empty-state-icon"><AppIcon name="folder" /></div>
+                                    <div className="empty-state-icon"><Codicon name="folder" /></div>
                                     <div className="empty-state-text">
                                         {errors.length > 0 ? 'Could not load file tree' : 'No files found'}
                                     </div>
@@ -480,7 +615,7 @@ export default function WorkspacePage() {
                         </div>
                         <div className="sidebar-content">
                             <div className="empty-state">
-                                <div className="empty-state-icon"><AppIcon name="search" /></div>
+                                <div className="empty-state-icon"><Codicon name="search" /></div>
                                 <div className="empty-state-text">Type to search across all files in the repository</div>
                             </div>
                         </div>
@@ -493,10 +628,10 @@ export default function WorkspacePage() {
                         </div>
                         <div className="sidebar-content">
                             <MiniBlockList
-                                blocks={storyboard?.blocks || []}
+                                blocks={visibleBlocks}
                                 activeBlock={activeBlock}
                                 completedBlocks={completedBlocks}
-                                role={role}
+                                unlockedBlockIndex={unlockedBlockIndex}
                                 onSelectBlock={selectBlock}
                             />
                         </div>
@@ -511,10 +646,10 @@ export default function WorkspacePage() {
                     <div>
                         {errors.map((err, i) => (
                             <div key={i} className="error-banner">
-                                <span className="error-banner-icon"><AppIcon name="warning" /></span>
+                                <span className="error-banner-icon"><Codicon name="warning" /></span>
                                 <span className="error-banner-text">{err}</span>
                                 <button className="error-banner-dismiss" onClick={() => dismissError(i)}>
-                                    <AppIcon name="close" />
+                                    <Codicon name="close" />
                                 </button>
                             </div>
                         ))}
@@ -530,13 +665,13 @@ export default function WorkspacePage() {
                                 className={`editor-tab ${i === activeFileIndex ? 'active' : ''}`}
                                 onClick={() => setActiveFileIndex(i)}
                             >
-                                <FileIcon name={getFileName(file.path)} className="tab-icon" />
+                                <SetiIcon theme={setiTheme} kind="file" name={getFileName(file.path)} className="tab-icon" />
                                 <span>{getFileName(file.path)}</span>
                                 <span
                                     className="editor-tab-close"
                                     onClick={(e) => { e.stopPropagation(); closeFile(i); }}
                                 >
-                                    <AppIcon name="close" />
+                                    <Codicon name="close" />
                                 </span>
                             </div>
                         ))}
@@ -550,7 +685,7 @@ export default function WorkspacePage() {
                             <span key={i}>
                                 {i > 0 && (
                                     <span className="breadcrumb-sep">
-                                        <AppIcon name="chevron-right" />
+                                        <Codicon name="chevron-right" />
                                     </span>
                                 )}
                                 <span className={`breadcrumb-item ${i === arr.length - 1 ? 'last' : ''}`}>
@@ -570,7 +705,7 @@ export default function WorkspacePage() {
                         />
                     ) : (
                         <div className="editor-welcome">
-                            <div className="editor-welcome-logo"><AppIcon name="vscode" /></div>
+                            <div className="editor-welcome-logo"><Codicon name="code" /></div>
                             <h2>Start by opening a file</h2>
                             <p>
                                 Select a storyboard block on the right to start learning,
@@ -593,51 +728,36 @@ export default function WorkspacePage() {
 
             {/* ---- Right Panel ---- */}
             <div className="right-panel">
-                <div className="panel-tabs">
-                    <div
-                        className={`panel-tab ${rightTab === 'storyboard' ? 'active' : ''}`}
-                        onClick={() => setRightTab('storyboard')}
-                    >
-                        <AppIcon name="storyboard" />
-                        Storyboard
-                    </div>
-                    <div
-                        className={`panel-tab ${rightTab === 'chat' ? 'active' : ''}`}
-                        onClick={() => setRightTab('chat')}
-                    >
-                        <AppIcon name="chat" />
-                        Chat
-                    </div>
-                </div>
-
                 <div className="panel-content">
-                    {rightTab === 'storyboard' ? (
-                        <StoryboardPanel
-                            blocks={storyboard?.blocks || []}
-                            activeBlock={activeBlock}
-                            completedBlocks={completedBlocks}
-                            role={role}
-                            onSelectBlock={selectBlock}
-                            onToggleComplete={toggleBlockComplete}
-                            onOpenFile={openFile}
-                        />
-                    ) : (
-                        <ChatPanel
-                            messages={chatMessages}
-                            input={chatInput}
-                            loading={chatLoading}
-                            activeBlock={activeBlock}
-                            onInputChange={setChatInput}
-                            onSend={sendChat}
-                        />
-                    )}
+                    <StoryboardPanel
+                        blocks={visibleBlocks}
+                        activeBlock={activeBlock}
+                        activeBlockIndex={activeBlockIndex}
+                        unlockedBlockIndex={unlockedBlockIndex}
+                        completedBlocks={completedBlocks}
+                        completedCount={completedCount}
+                        progressPercent={progressPercent}
+                        nextBlockLocked={nextBlockLocked}
+                        canGoPrev={canGoPrev}
+                        canGoNext={canGoNext}
+                        setiTheme={setiTheme}
+                        chatMessages={chatMessages}
+                        chatInput={chatInput}
+                        chatLoading={chatLoading}
+                        onToggleComplete={toggleBlockComplete}
+                        onOpenFile={openFile}
+                        onChatInputChange={setChatInput}
+                        onSendChat={sendChat}
+                        onGoPrev={goToPreviousBlock}
+                        onGoNext={goToNextBlock}
+                    />
                 </div>
             </div>
 
             {/* ---- Status Bar ---- */}
             <div className="statusbar">
                 <div className="statusbar-left">
-                    <div className="statusbar-item"><AppIcon name="spark" /> Forge</div>
+                    <div className="statusbar-item"><Codicon name="code" /> Forge</div>
                     <div className="statusbar-item">
                         {activeBlock ? activeBlock.title : 'No block selected'}
                     </div>
@@ -668,6 +788,7 @@ export default function WorkspacePage() {
                     onToggleSidebar={() => setSidebarCollapsed(v => !v)}
                     onSwitchRole={setRole}
                     fileTree={fileTree}
+                    setiTheme={setiTheme}
                     onOpenFile={(path: string) => { openFile(path); setShowCommandPalette(false); }}
                 />
             )}
@@ -678,13 +799,14 @@ export default function WorkspacePage() {
 // =============== Sub-Components ===============
 
 // ---- File Tree ----
-function FileTreeNode({ node, onFileClick, onFileHover, depth = 0, filter = '', activeFilePath }: {
+function FileTreeNode({ node, onFileClick, onFileHover, depth = 0, filter = '', activeFilePath, setiTheme }: {
     node: FileNode;
     onFileClick: (path: string) => void;
     onFileHover?: (path: string) => void;
     depth?: number;
     filter?: string;
     activeFilePath?: string;
+    setiTheme?: SetiIconTheme | null;
 }) {
     const [expanded, setExpanded] = useState(depth < 2);
 
@@ -708,7 +830,7 @@ function FileTreeNode({ node, onFileClick, onFileHover, depth = 0, filter = '', 
                 onClick={() => node.path && onFileClick(node.path)}
                 onMouseEnter={() => node.path && onFileHover?.(node.path)}
             >
-                <FileIcon name={node.name} className="tree-file-icon" />
+                <SetiIcon theme={setiTheme} kind="file" name={node.name} className="tree-file-icon" />
                 <span className="name">{node.name}</span>
             </div>
         );
@@ -721,8 +843,13 @@ function FileTreeNode({ node, onFileClick, onFileHover, depth = 0, filter = '', 
                 style={{ paddingLeft: 12 + depth * 16 }}
                 onClick={() => setExpanded(!expanded)}
             >
-                <span className="icon tree-chevron">{expanded ? <AppIcon name="chevron-down" /> : <AppIcon name="chevron-right" />}</span>
-                <span className="icon tree-folder">{expanded ? <AppIcon name="folder-open" /> : <AppIcon name="folder" />}</span>
+                <span className="icon tree-chevron"><Codicon name={expanded ? 'chevron-down' : 'chevron-right'} /></span>
+                <SetiIcon
+                    theme={setiTheme}
+                    kind={expanded ? 'folderExpanded' : 'folder'}
+                    name={node.name}
+                    className="tree-folder-icon"
+                />
                 <span className="name" style={{ fontWeight: depth === 0 ? 500 : 400 }}>{node.name}</span>
             </div>
             {expanded && node.children && (
@@ -739,6 +866,7 @@ function FileTreeNode({ node, onFileClick, onFileHover, depth = 0, filter = '', 
                                 depth={depth + 1}
                                 filter={filter}
                                 activeFilePath={activeFilePath}
+                                setiTheme={setiTheme}
                             />
                         ))}
                 </div>
@@ -774,20 +902,136 @@ function CodeViewer({ content, filePath, highlightedLines }: {
     );
 }
 
+function MermaidDiagram({ diagram, compact = false }: { diagram: string; compact?: boolean }) {
+    const source = typeof diagram === 'string' ? diagram.trim() : '';
+    const [svg, setSvg] = useState('');
+    const [renderError, setRenderError] = useState<string | null>(null);
+    const stableId = useId().replace(/[^a-zA-Z0-9_-]/g, '');
+    const instanceIdRef = useRef(`forge-mermaid-${stableId}`);
+
+    useEffect(() => {
+        let cancelled = false;
+        if (!source) return;
+
+        async function renderDiagram() {
+            try {
+                const mermaid = await loadMermaidApi();
+                if (cancelled) return;
+                const result = await mermaid.render(instanceIdRef.current, source);
+                if (cancelled) return;
+                setSvg(result.svg || '');
+                setRenderError(null);
+            } catch (err) {
+                if (cancelled) return;
+                const message = err instanceof Error ? err.message : 'Could not render diagram';
+                setRenderError(message);
+                setSvg('');
+            }
+        }
+
+        void renderDiagram();
+        return () => {
+            cancelled = true;
+        };
+    }, [source]);
+
+    if (!source) {
+        return null;
+    }
+
+    if (renderError) {
+        return (
+            <div className={`mermaid-fallback ${compact ? 'compact' : ''}`.trim()}>
+                <div className="mermaid-error">{renderError}</div>
+                <pre>{diagram}</pre>
+            </div>
+        );
+    }
+
+    if (!svg) {
+        return <div className="mermaid-loading">Rendering diagram…</div>;
+    }
+
+    return (
+        <div
+            className={`mermaid-render ${compact ? 'compact' : ''}`.trim()}
+            dangerouslySetInnerHTML={{ __html: svg }}
+        />
+    );
+}
+
+function AssistantMessageContent({ content }: { content: string }) {
+    const segments = useMemo(() => splitContentByMermaid(content), [content]);
+
+    return (
+        <div className="assistant-message-content">
+            {segments.map((segment, index) => {
+                if (segment.kind === 'mermaid') {
+                    return (
+                        <div key={`${segment.kind}-${index}`} className="chat-mermaid-block">
+                            <MermaidDiagram diagram={segment.value} compact />
+                        </div>
+                    );
+                }
+
+                if (!segment.value.trim()) return null;
+                return (
+                    <div
+                        key={`${segment.kind}-${index}`}
+                        dangerouslySetInnerHTML={{ __html: simpleMarkdown(segment.value) }}
+                    />
+                );
+            })}
+        </div>
+    );
+}
+
+function splitContentByMermaid(content: string): { kind: 'text' | 'mermaid'; value: string }[] {
+    if (typeof content !== 'string' || !content) return [{ kind: 'text', value: '' }];
+
+    const segments: { kind: 'text' | 'mermaid'; value: string }[] = [];
+    const regex = /```mermaid\s*([\s\S]*?)```/gi;
+    let cursor = 0;
+    let match: RegExpExecArray | null = regex.exec(content);
+
+    while (match) {
+        const start = match.index;
+        if (start > cursor) {
+            segments.push({ kind: 'text', value: content.slice(cursor, start) });
+        }
+
+        const diagram = typeof match[1] === 'string' ? match[1].trim() : '';
+        if (diagram) {
+            segments.push({ kind: 'mermaid', value: diagram });
+        }
+
+        cursor = regex.lastIndex;
+        match = regex.exec(content);
+    }
+
+    if (cursor < content.length) {
+        segments.push({ kind: 'text', value: content.slice(cursor) });
+    }
+
+    if (segments.length === 0) {
+        segments.push({ kind: 'text', value: content });
+    }
+
+    return segments;
+}
+
 // ---- Mini Block List for sidebar ----
-function MiniBlockList({ blocks, activeBlock, completedBlocks, role, onSelectBlock }: {
+function MiniBlockList({ blocks, activeBlock, completedBlocks, unlockedBlockIndex, onSelectBlock }: {
     blocks: StoryboardBlock[];
     activeBlock: StoryboardBlock | null;
     completedBlocks: Set<string>;
-    role: Role;
+    unlockedBlockIndex: number;
     onSelectBlock: (block: StoryboardBlock) => void;
 }) {
-    const filtered = blocks.filter(b => role === 'fullstack' || b.roleTags?.includes(role));
-
-    if (filtered.length === 0) {
+    if (blocks.length === 0) {
         return (
             <div className="empty-state">
-                <div className="empty-state-icon"><AppIcon name="storyboard" /></div>
+                <div className="empty-state-icon"><Codicon name="symbol-structure" /></div>
                 <div className="empty-state-text">
                     No storyboard blocks yet. Generate a storyboard to see learning modules here.
                 </div>
@@ -797,124 +1041,84 @@ function MiniBlockList({ blocks, activeBlock, completedBlocks, role, onSelectBlo
 
     return (
         <div className="block-list">
-            {filtered.map(block => (
-                <div
-                    key={block.blockId}
-                    className={`block-item ${activeBlock?.blockId === block.blockId ? 'active' : ''} ${completedBlocks.has(block.blockId) ? 'completed' : ''}`}
-                    onClick={() => onSelectBlock(block)}
-                    style={{ padding: '6px 8px' }}
-                >
-                    <div className="block-check" style={{ width: 16, height: 16, fontSize: 9 }}>
-                        {completedBlocks.has(block.blockId) && '✓'}
-                    </div>
-                    <div className="block-info">
-                        <div className="block-title" style={{ fontSize: 12 }}>{block.title}</div>
-                    </div>
-                </div>
-            ))}
+            {blocks.map((block, index) => {
+                const isCompleted = completedBlocks.has(block.blockId);
+                const isLocked = index > unlockedBlockIndex;
+                const isActive = activeBlock?.blockId === block.blockId;
+
+                return (
+                    <button
+                        type="button"
+                        key={block.blockId}
+                        className={`block-item ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''} ${isLocked ? 'locked' : ''}`}
+                        onClick={() => onSelectBlock(block)}
+                        disabled={isLocked}
+                        style={{ padding: '6px 8px' }}
+                    >
+                        <div className="block-check" style={{ width: 16, height: 16, fontSize: 9 }}>
+                            {isCompleted ? '✓' : (isLocked ? <Codicon name="lock" /> : index + 1)}
+                        </div>
+                        <div className="block-info">
+                            <div className="block-title" style={{ fontSize: 12 }}>{block.title}</div>
+                            {isLocked && (
+                                <div className="block-locked-note">Complete the previous block to unlock.</div>
+                            )}
+                        </div>
+                    </button>
+                );
+            })}
         </div>
     );
 }
 
 // ---- Storyboard Panel ----
-function StoryboardPanel({ blocks, activeBlock, completedBlocks, role, onSelectBlock, onToggleComplete, onOpenFile }: {
+function StoryboardPanel({
+    blocks,
+    activeBlock,
+    activeBlockIndex,
+    unlockedBlockIndex,
+    completedBlocks,
+    completedCount,
+    progressPercent,
+    nextBlockLocked,
+    canGoPrev,
+    canGoNext,
+    setiTheme,
+    chatMessages,
+    chatInput,
+    chatLoading,
+    onToggleComplete,
+    onOpenFile,
+    onChatInputChange,
+    onSendChat,
+    onGoPrev,
+    onGoNext,
+}: {
     blocks: StoryboardBlock[];
     activeBlock: StoryboardBlock | null;
+    activeBlockIndex: number;
+    unlockedBlockIndex: number;
     completedBlocks: Set<string>;
-    role: Role;
-    onSelectBlock: (block: StoryboardBlock) => void;
+    completedCount: number;
+    progressPercent: number;
+    nextBlockLocked: boolean;
+    canGoPrev: boolean;
+    canGoNext: boolean;
+    setiTheme: SetiIconTheme | null;
+    chatMessages: ChatMessage[];
+    chatInput: string;
+    chatLoading: boolean;
     onToggleComplete: (blockId: string) => void;
     onOpenFile: (path: string) => void;
+    onChatInputChange: (value: string) => void;
+    onSendChat: () => void;
+    onGoPrev: () => void;
+    onGoNext: () => void;
 }) {
-    // Show block detail if one is active
-    if (activeBlock && blocks.find(b => b.blockId === activeBlock.blockId)) {
-        return (
-            <div className="block-detail animate-fade-in">
-                <button
-                    className="btn-ghost"
-                    onClick={() => onSelectBlock(blocks[0])}
-                    style={{ marginBottom: 12 }}
-                >
-                    ← Back to blocks
-                </button>
-
-                <div className="block-detail-header">
-                    <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                        {activeBlock.roleTags?.map(tag => (
-                            <span key={tag} className={`badge badge-${tag}`}>{tag}</span>
-                        ))}
-                        <span className="block-time">~{activeBlock.estimatedMinutes} min</span>
-                    </div>
-                    <div className="block-detail-title">{activeBlock.title}</div>
-                    <div className="block-detail-objective">{activeBlock.objective}</div>
-                </div>
-
-                {/* Explanation */}
-                <div className="block-detail-section">
-                    <div className="block-detail-section-title">Explanation</div>
-                    <div className="markdown-content">
-                        <div dangerouslySetInnerHTML={{ __html: simpleMarkdown(activeBlock.explanationMarkdown || '') }} />
-                    </div>
-                </div>
-
-                {/* Mermaid Diagram */}
-                {activeBlock.mermaidDiagram && (
-                    <div className="block-detail-section">
-                        <div className="block-detail-section-title">Diagram</div>
-                        <div className="mermaid-container">
-                            <pre style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                                {activeBlock.mermaidDiagram}
-                            </pre>
-                        </div>
-                    </div>
-                )}
-
-                {/* Key Files */}
-                {activeBlock.keyFiles?.length > 0 && (
-                    <div className="block-detail-section">
-                        <div className="block-detail-section-title">Key Files</div>
-                        <div className="block-files-list">
-                            {activeBlock.keyFiles.map(f => (
-                                <div key={f} className="block-file-link" onClick={() => onOpenFile(f)}>
-                                    <FileIcon name={getFileName(f)} className="inline-file-icon" /> {f}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* Key Takeaways */}
-                {activeBlock.keyTakeaways && activeBlock.keyTakeaways.length > 0 && (
-                    <div className="block-detail-section">
-                        <div className="block-detail-section-title">Key Takeaways</div>
-                        <div className="takeaway-list">
-                            {activeBlock.keyTakeaways.map((t, i) => (
-                                <div key={i} className="takeaway-item">
-                                    <span className="takeaway-icon">✓</span>
-                                    <span>{t}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* Mark Complete */}
-                <button
-                    className={completedBlocks.has(activeBlock.blockId) ? 'btn-secondary' : 'btn-primary'}
-                    onClick={() => onToggleComplete(activeBlock.blockId)}
-                    style={{ width: '100%', marginTop: 16 }}
-                >
-                    {completedBlocks.has(activeBlock.blockId) ? '↺ Mark Incomplete' : '✓ Mark as Complete'}
-                </button>
-            </div>
-        );
-    }
-
-    // Empty state
     if (blocks.length === 0) {
         return (
             <div className="empty-state" style={{ height: '100%' }}>
-                <div className="empty-state-icon"><AppIcon name="storyboard" /></div>
+                <div className="empty-state-icon"><Codicon name="symbol-structure" /></div>
                 <div className="empty-state-text">
                     No storyboard blocks generated yet.
                     The storyboard will appear here once generated.
@@ -923,47 +1127,160 @@ function StoryboardPanel({ blocks, activeBlock, completedBlocks, role, onSelectB
         );
     }
 
-    // Block list view
+    const fallbackBlock = blocks[Math.max(0, Math.min(unlockedBlockIndex, blocks.length - 1))];
+    const currentBlock = (activeBlock && blocks.find(block => block.blockId === activeBlock.blockId)) || fallbackBlock;
+    const currentBlockComplete = completedBlocks.has(currentBlock.blockId);
+
     return (
-        <div className="block-list">
-            {blocks
-                .filter(b => role === 'fullstack' || b.roleTags?.includes(role))
-                .map(block => (
-                    <div
-                        key={block.blockId}
-                        className={`block-item ${activeBlock?.blockId === block.blockId ? 'active' : ''} ${completedBlocks.has(block.blockId) ? 'completed' : ''}`}
-                        onClick={() => onSelectBlock(block)}
-                    >
-                        <div
-                            className="block-check"
-                            onClick={(e) => { e.stopPropagation(); onToggleComplete(block.blockId); }}
-                        >
-                            {completedBlocks.has(block.blockId) && '✓'}
-                        </div>
-                        <div className="block-info">
-                            <div className="block-title">{block.title}</div>
-                            <div className="block-objective">{block.objective}</div>
-                            <div className="block-tags">
-                                {block.roleTags?.map(tag => (
-                                    <span key={tag} className={`badge badge-${tag}`}>{tag}</span>
-                                ))}
-                                <span className="block-time">~{block.estimatedMinutes}m</span>
-                            </div>
-                        </div>
+        <div className="block-detail animate-fade-in">
+            <div className="block-navigation">
+                <button type="button" className="btn-secondary block-nav-btn" onClick={onGoPrev} disabled={!canGoPrev}>
+                    ← Previous
+                </button>
+                <div className="block-nav-status">
+                    {Math.max(1, activeBlockIndex + 1)} / {blocks.length}
+                </div>
+                <button type="button" className="btn-secondary block-nav-btn" onClick={onGoNext} disabled={!canGoNext}>
+                    Next →
+                </button>
+            </div>
+
+            {nextBlockLocked && (
+                <div className="sequential-hint">
+                    <Codicon name="lock" />
+                    Complete this block to unlock the next step.
+                </div>
+            )}
+
+            <div className="block-detail-header">
+                <div className="block-detail-meta">
+                    <span className="block-time">Step {Math.max(1, activeBlockIndex + 1)} of {blocks.length}</span>
+                    <span className="block-time">~{currentBlock.estimatedMinutes} min</span>
+                </div>
+                <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                    {currentBlock.roleTags?.map(tag => (
+                        <span key={tag} className={`badge badge-${tag}`}>{tag}</span>
+                    ))}
+                </div>
+                <div className="block-detail-title">{currentBlock.title}</div>
+                <div className="block-detail-objective">{currentBlock.objective}</div>
+            </div>
+
+            <div className="block-detail-section">
+                <div className="block-detail-section-title">Explanation</div>
+                <div className="markdown-content">
+                    <div dangerouslySetInnerHTML={{ __html: simpleMarkdown(currentBlock.explanationMarkdown || '') }} />
+                </div>
+            </div>
+
+            {currentBlock.mermaidDiagram && (
+                <div className="block-detail-section">
+                    <div className="block-detail-section-title">Diagram</div>
+                    <div className="mermaid-container">
+                        <MermaidDiagram diagram={currentBlock.mermaidDiagram} />
                     </div>
-                ))}
+                </div>
+            )}
+
+            {currentBlock.keyFiles?.length > 0 && (
+                <div className="block-detail-section">
+                    <div className="block-detail-section-title">Key Files</div>
+                    <div className="block-files-list">
+                        {currentBlock.keyFiles.map(filePath => (
+                            <button key={filePath} type="button" className="block-file-link" onClick={() => onOpenFile(filePath)}>
+                                <SetiIcon theme={setiTheme} kind="file" name={getFileName(filePath)} className="inline-file-icon" /> {filePath}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {currentBlock.resources?.length > 0 && (
+                <div className="block-detail-section">
+                    <div className="block-detail-section-title">Resources</div>
+                    <div className="resource-list">
+                        {currentBlock.resources.map((resource, index) => {
+                            const parsed = parseResource(resource);
+                            if (!parsed.url) {
+                                return (
+                                    <span key={`${resource}-${index}`} className="resource-link resource-link-muted">
+                                        <Codicon name="link-external" />
+                                        {parsed.label}
+                                    </span>
+                                );
+                            }
+
+                            return (
+                                <a
+                                    key={`${resource}-${index}`}
+                                    href={parsed.url}
+                                    className="resource-link"
+                                    target="_blank"
+                                    rel="noreferrer noopener"
+                                >
+                                    <Codicon name="link-external" />
+                                    {parsed.label}
+                                </a>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {currentBlock.keyTakeaways && currentBlock.keyTakeaways.length > 0 && (
+                <div className="block-detail-section">
+                    <div className="block-detail-section-title">Key Takeaways</div>
+                    <div className="takeaway-list">
+                        {currentBlock.keyTakeaways.map((takeaway, i) => (
+                            <div key={i} className="takeaway-item">
+                                <span className="takeaway-icon">✓</span>
+                                <span>{takeaway}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            <div className="block-detail-section">
+                <div className="block-detail-section-title">Chat About This Block</div>
+                <ChatPanel
+                    messages={chatMessages}
+                    input={chatInput}
+                    loading={chatLoading}
+                    activeBlock={currentBlock}
+                    onInputChange={onChatInputChange}
+                    onSend={onSendChat}
+                    embedded
+                />
+            </div>
+
+            <button
+                className={currentBlockComplete ? 'btn-secondary' : 'btn-primary'}
+                onClick={() => onToggleComplete(currentBlock.blockId)}
+                style={{ width: '100%', marginTop: 16 }}
+            >
+                {currentBlockComplete ? '↺ Mark Incomplete' : '✓ Mark as Complete'}
+            </button>
+
+            <div className="guided-bottom-progress">
+                <div className="guided-bottom-progress-meta">{completedCount} of {blocks.length} completed</div>
+                <div className="progress-bar block-progress-bar">
+                    <div className="progress-bar-fill" style={{ width: `${progressPercent}%` }} />
+                </div>
+            </div>
         </div>
     );
 }
 
 // ---- Chat Panel ----
-function ChatPanel({ messages, input, loading, activeBlock, onInputChange, onSend }: {
+function ChatPanel({ messages, input, loading, activeBlock, onInputChange, onSend, embedded = false }: {
     messages: ChatMessage[];
     input: string;
     loading: boolean;
     activeBlock: StoryboardBlock | null;
     onInputChange: (value: string) => void;
     onSend: () => void;
+    embedded?: boolean;
 }) {
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -972,16 +1289,19 @@ function ChatPanel({ messages, input, loading, activeBlock, onInputChange, onSen
     }, [messages]);
 
     return (
-        <div className="chat-container">
+        <div className={`chat-container ${embedded ? 'embedded' : ''}`.trim()}>
             {!activeBlock ? (
                 <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
                     <p>Select a storyboard block to start chatting about it.</p>
                 </div>
             ) : (
                 <>
-                    <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--panel-border)', fontSize: 12, color: 'var(--text-muted)' }}>
-                        Chatting about: <strong style={{ color: 'var(--accent)' }}>{activeBlock.title}</strong>
-                    </div>
+                    {!embedded && (
+                        <div className="chat-header">
+                            <span className="chat-header-label">Chat</span>
+                            <strong style={{ color: 'var(--accent)' }}>{activeBlock.title}</strong>
+                        </div>
+                    )}
 
                     <div className="chat-messages">
                         {messages.length === 0 && (
@@ -991,13 +1311,14 @@ function ChatPanel({ messages, input, loading, activeBlock, onInputChange, onSen
                                     <div style={{ marginTop: 12 }}>
                                         <div style={{ fontWeight: 600, marginBottom: 4 }}>Suggested questions:</div>
                                         {activeBlock.suggestedQuestions.map((q, i) => (
-                                            <div
+                                            <button
                                                 key={i}
-                                                style={{ cursor: 'pointer', color: 'var(--accent)', margin: '4px 0' }}
+                                                type="button"
+                                                className="chat-suggested-question"
                                                 onClick={() => onInputChange(q)}
                                             >
                                                 → {q}
-                                            </div>
+                                            </button>
                                         ))}
                                     </div>
                                 )}
@@ -1011,7 +1332,7 @@ function ChatPanel({ messages, input, loading, activeBlock, onInputChange, onSen
                                 </div>
                                 <div className="chat-message-content">
                                     {msg.role === 'assistant' ? (
-                                        <div dangerouslySetInnerHTML={{ __html: simpleMarkdown(msg.content) }} />
+                                        <AssistantMessageContent content={msg.content} />
                                     ) : (
                                         msg.content
                                     )}
@@ -1046,7 +1367,7 @@ function ChatPanel({ messages, input, loading, activeBlock, onInputChange, onSen
                                 onClick={onSend}
                                 disabled={loading || !input.trim()}
                             >
-                                <AppIcon name="chevron-right" />
+                                <Codicon name="arrow-right" />
                             </button>
                         </div>
                     </div>
@@ -1057,11 +1378,12 @@ function ChatPanel({ messages, input, loading, activeBlock, onInputChange, onSen
 }
 
 // ---- Command Palette ----
-function CommandPalette({ onClose, onToggleSidebar, onSwitchRole, fileTree, onOpenFile }: {
+function CommandPalette({ onClose, onToggleSidebar, onSwitchRole, fileTree, setiTheme, onOpenFile }: {
     onClose: () => void;
     onToggleSidebar: () => void;
     onSwitchRole: (role: Role) => void;
     fileTree: FileNode | null;
+    setiTheme: SetiIconTheme | null;
     onOpenFile: (path: string) => void;
 }) {
     const [query, setQuery] = useState('');
@@ -1072,16 +1394,16 @@ function CommandPalette({ onClose, onToggleSidebar, onSwitchRole, fileTree, onOp
     }, []);
 
     const commands: { icon: ReactNode; label: string; shortcut: string; action: () => void }[] = [
-        { icon: <AppIcon name="files" />, label: 'Toggle Sidebar', shortcut: '⌘B', action: () => { onToggleSidebar(); onClose(); } },
-        { icon: <AppIcon name="spark" />, label: 'Switch to Full Stack', shortcut: '', action: () => { onSwitchRole('fullstack'); onClose(); } },
-        { icon: <AppIcon name="spark" />, label: 'Switch to Frontend', shortcut: '', action: () => { onSwitchRole('frontend'); onClose(); } },
-        { icon: <AppIcon name="spark" />, label: 'Switch to Backend', shortcut: '', action: () => { onSwitchRole('backend'); onClose(); } },
-        { icon: <AppIcon name="spark" />, label: 'Switch to Infra', shortcut: '', action: () => { onSwitchRole('infra'); onClose(); } },
+        { icon: <Codicon name="files" />, label: 'Toggle Sidebar', shortcut: '⌘B', action: () => { onToggleSidebar(); onClose(); } },
+        { icon: <Codicon name="symbol-structure" />, label: 'Switch to Full Stack', shortcut: '', action: () => { onSwitchRole('fullstack'); onClose(); } },
+        { icon: <Codicon name="symbol-color" />, label: 'Switch to Frontend', shortcut: '', action: () => { onSwitchRole('frontend'); onClose(); } },
+        { icon: <Codicon name="server" />, label: 'Switch to Backend', shortcut: '', action: () => { onSwitchRole('backend'); onClose(); } },
+        { icon: <Codicon name="tools" />, label: 'Switch to Infra', shortcut: '', action: () => { onSwitchRole('infra'); onClose(); } },
     ];
 
     // Add open file commands from file tree
     const fileCommands = getFileList(fileTree).slice(0, 20).map(path => ({
-        icon: <FileIcon name={getFileName(path)} className="command-file-icon" />,
+        icon: <SetiIcon theme={setiTheme} kind="file" name={getFileName(path)} className="command-file-icon" />,
         label: path,
         shortcut: '',
         action: () => onOpenFile(path),
@@ -1136,6 +1458,60 @@ function CommandPalette({ onClose, onToggleSidebar, onSwitchRole, fileTree, onOp
 
 // =============== Helpers ===============
 
+async function loadMermaidApi(): Promise<MermaidApi> {
+    if (typeof window === 'undefined') {
+        throw new Error('Mermaid is only available in the browser');
+    }
+
+    if (window.mermaid) {
+        initializeMermaid(window.mermaid);
+        return window.mermaid;
+    }
+
+    if (!window.__forgeMermaidLoader) {
+        window.__forgeMermaidLoader = new Promise<MermaidApi>((resolve, reject) => {
+            const existing = document.querySelector<HTMLScriptElement>('script[data-forge-mermaid="true"]');
+            if (existing && window.mermaid) {
+                initializeMermaid(window.mermaid);
+                resolve(window.mermaid);
+                return;
+            }
+
+            const script = existing || document.createElement('script');
+            script.src = MERMAID_CDN_URL;
+            script.async = true;
+            script.setAttribute('data-forge-mermaid', 'true');
+
+            script.onload = () => {
+                if (!window.mermaid) {
+                    reject(new Error('Mermaid failed to initialize'));
+                    return;
+                }
+                initializeMermaid(window.mermaid);
+                resolve(window.mermaid);
+            };
+            script.onerror = () => reject(new Error('Failed to load Mermaid'));
+
+            if (!existing) {
+                document.head.appendChild(script);
+            }
+        });
+    }
+
+    return window.__forgeMermaidLoader;
+}
+
+function initializeMermaid(mermaidApi: MermaidApi) {
+    if (window.__forgeMermaidInitialized) return;
+
+    mermaidApi.initialize({
+        startOnLoad: false,
+        theme: 'dark',
+        securityLevel: 'loose',
+    });
+    window.__forgeMermaidInitialized = true;
+}
+
 function getFileName(path: string): string {
     return path.split('/').pop() || path;
 }
@@ -1147,154 +1523,204 @@ function sortTreeNodes(a: FileNode, b: FileNode): number {
     return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
 }
 
-function AppIcon({ name, className = '' }: { name: IconName; className?: string }) {
-    const common = { className: `app-icon ${className}`.trim(), viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5 };
-
-    switch (name) {
-        case 'files':
-            return (
-                <svg {...common}>
-                    <path d="M2 3.5h5l1 1.5h6v7.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5Z" />
-                    <path d="M2 6h12" />
-                </svg>
-            );
-        case 'search':
-            return (
-                <svg {...common}>
-                    <circle cx="7" cy="7" r="4.5" />
-                    <path d="m10.5 10.5 3 3" />
-                </svg>
-            );
-        case 'storyboard':
-            return (
-                <svg {...common}>
-                    <rect x="2" y="2" width="5" height="5" />
-                    <rect x="9" y="2" width="5" height="5" />
-                    <rect x="2" y="9" width="5" height="5" />
-                    <rect x="9" y="9" width="5" height="5" />
-                </svg>
-            );
-        case 'settings':
-            return (
-                <svg {...common}>
-                    <circle cx="8" cy="8" r="2.5" />
-                    <path d="M8 1.8v2M8 12.2v2M1.8 8h2M12.2 8h2M3.2 3.2l1.4 1.4M11.4 11.4l1.4 1.4M12.8 3.2l-1.4 1.4M4.6 11.4l-1.4 1.4" />
-                </svg>
-            );
-        case 'account':
-            return (
-                <svg {...common}>
-                    <circle cx="8" cy="5" r="2.5" />
-                    <path d="M3 13c0-2.1 2.2-3.6 5-3.6s5 1.5 5 3.6" />
-                </svg>
-            );
-        case 'chat':
-            return (
-                <svg {...common}>
-                    <path d="M2.5 3.5h11v7h-5l-3 2.5v-2.5h-3a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1Z" />
-                </svg>
-            );
-        case 'chevron-right':
-            return (
-                <svg {...common}>
-                    <path d="m6 3 4 5-4 5" />
-                </svg>
-            );
-        case 'chevron-down':
-            return (
-                <svg {...common}>
-                    <path d="m3 6 5 4 5-4" />
-                </svg>
-            );
-        case 'folder':
-            return (
-                <svg {...common}>
-                    <path d="M1.8 4.5h4l1.4 1.7h7v5.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1V4.5Z" />
-                </svg>
-            );
-        case 'folder-open':
-            return (
-                <svg {...common}>
-                    <path d="M2 5.2h4l1 1.4h7l-1.7 5.7a1 1 0 0 1-1 .7H2.7a1 1 0 0 1-1-1l.3-6.8Z" />
-                </svg>
-            );
-        case 'close':
-            return (
-                <svg {...common}>
-                    <path d="m4 4 8 8M12 4l-8 8" />
-                </svg>
-            );
-        case 'warning':
-            return (
-                <svg {...common}>
-                    <path d="M8 2.3 14 13H2L8 2.3Z" />
-                    <path d="M8 6.2v3.5M8 11.7h.01" />
-                </svg>
-            );
-        case 'command':
-            return (
-                <svg {...common}>
-                    <rect x="2.2" y="2.2" width="4.3" height="4.3" rx="1.3" />
-                    <rect x="9.5" y="2.2" width="4.3" height="4.3" rx="1.3" />
-                    <rect x="2.2" y="9.5" width="4.3" height="4.3" rx="1.3" />
-                    <rect x="9.5" y="9.5" width="4.3" height="4.3" rx="1.3" />
-                </svg>
-            );
-        case 'spark':
-            return (
-                <svg {...common}>
-                    <path d="m8 2 1.3 3.1L12.5 6l-3.2 1 .8 3.3L8 8.6l-2.1 1.7.8-3.3L3.5 6l3.2-.9L8 2Z" />
-                </svg>
-            );
-        case 'vscode':
-            return (
-                <svg {...common}>
-                    <path d="M11.3 2.4 6.2 6.9l-2-1.5L2.6 6.8l1.7 1.4-1.7 1.4L4.2 11l2-1.5 5.1 4.1 2.1-1V3.4l-2.1-1Z" />
-                </svg>
-            );
-        default:
-            return null;
-    }
+function normalizeRoleToken(value: string): string {
+    return value
+        .toLowerCase()
+        .replace(/[\s_-]+/g, '');
 }
 
-function FileIcon({ name, className = '' }: { name: string; className?: string }) {
-    const iconMeta = getFileIconMeta(name);
-    const style = {
-        '--file-icon-color': iconMeta.color,
-        '--file-icon-bg': iconMeta.background,
-    } as CSSProperties;
+function blockMatchesRole(block: StoryboardBlock, role: Role): boolean {
+    if (role === 'fullstack') return true;
+    const tags = Array.isArray(block.roleTags) ? block.roleTags : [];
+    if (tags.length === 0) return false;
+
+    const normalizedRole = normalizeRoleToken(role);
+    return tags.some(tag => {
+        const token = normalizeRoleToken(String(tag));
+        if (!token) return false;
+        if (token === normalizedRole) return true;
+        if (normalizedRole === 'frontend' && token.includes('front')) return true;
+        if (normalizedRole === 'backend' && token.includes('back')) return true;
+        if (normalizedRole === 'infra' && (token.includes('infra') || token.includes('devops') || token.includes('platform'))) return true;
+        return false;
+    });
+}
+
+function Codicon({ name, className = '', style }: { name: string; className?: string; style?: CSSProperties }) {
+    return <i className={`codicon codicon-${name} ${className}`.trim()} style={style} aria-hidden="true" />;
+}
+
+function SetiIcon({ theme, kind, name, className = '' }: {
+    theme: SetiIconTheme | null | undefined;
+    kind: 'file' | 'folder' | 'folderExpanded';
+    name: string;
+    className?: string;
+}) {
+    const vscodeLikeIcon = resolveVscodeLikeIcon(kind, name);
+    if (vscodeLikeIcon) {
+        return renderVscodeLikeIcon(vscodeLikeIcon, className);
+    }
+
+    const iconMeta = resolveSetiIcon(theme, kind, name);
+
+    if (iconMeta?.glyph) {
+        const style = iconMeta.color ? ({ color: iconMeta.color } as CSSProperties) : undefined;
+        return (
+            <span className={`seti-icon ${className}`.trim()} style={style}>
+                {iconMeta.glyph}
+            </span>
+        );
+    }
+
+    if (kind === 'folder' || kind === 'folderExpanded') {
+        return <Codicon name={kind === 'folderExpanded' ? 'folder-opened' : 'folder'} className={className} />;
+    }
+
+    return <Codicon name="file" className={className} />;
+}
+
+function renderVscodeLikeIcon(icon: VscodeLikeIcon, className = '') {
+    if (icon.type === 'badge') {
+        return (
+            <span
+                className={`vscode-badge-icon ${className}`.trim()}
+                style={{ color: icon.color, backgroundColor: icon.background }}
+            >
+                {icon.label}
+            </span>
+        );
+    }
 
     return (
-        <span className={`file-icon ${className}`.trim()} style={style}>
-            {iconMeta.label}
+        <span className={`vscode-codicon-icon ${className}`.trim()} style={{ color: icon.color }}>
+            <Codicon name={icon.codicon || 'file'} />
+            {icon.dotColor && <span className="vscode-codicon-dot" style={{ backgroundColor: icon.dotColor }} />}
         </span>
     );
 }
 
-function getFileIconMeta(name: string): { label: string; color: string; background: string } {
-    const ext = name.split('.').pop()?.toLowerCase() || '';
-    const map: Record<string, { label: string; color: string; background: string }> = {
-        ts: { label: 'TS', color: '#3178c6', background: 'rgba(49, 120, 198, 0.2)' },
-        tsx: { label: 'TX', color: '#4fc1ff', background: 'rgba(79, 193, 255, 0.2)' },
-        js: { label: 'JS', color: '#d7ba7d', background: 'rgba(215, 186, 125, 0.2)' },
-        jsx: { label: 'JX', color: '#d7ba7d', background: 'rgba(215, 186, 125, 0.2)' },
-        css: { label: 'CS', color: '#42a5f5', background: 'rgba(66, 165, 245, 0.2)' },
-        scss: { label: 'SC', color: '#c586c0', background: 'rgba(197, 134, 192, 0.2)' },
-        html: { label: 'HT', color: '#e37933', background: 'rgba(227, 121, 51, 0.2)' },
-        json: { label: '{}', color: '#cbcb41', background: 'rgba(203, 203, 65, 0.2)' },
-        md: { label: 'MD', color: '#519aba', background: 'rgba(81, 154, 186, 0.2)' },
-        yml: { label: 'YM', color: '#f44747', background: 'rgba(244, 71, 71, 0.2)' },
-        yaml: { label: 'YM', color: '#f44747', background: 'rgba(244, 71, 71, 0.2)' },
-        py: { label: 'PY', color: '#4b8bbe', background: 'rgba(75, 139, 190, 0.2)' },
-        go: { label: 'GO', color: '#00add8', background: 'rgba(0, 173, 216, 0.2)' },
-        rs: { label: 'RS', color: '#ce9178', background: 'rgba(206, 145, 120, 0.2)' },
-        java: { label: 'JV', color: '#b07219', background: 'rgba(176, 114, 25, 0.2)' },
-        sh: { label: 'SH', color: '#89d185', background: 'rgba(137, 209, 133, 0.2)' },
-        lock: { label: 'LK', color: '#808080', background: 'rgba(128, 128, 128, 0.2)' },
-        svg: { label: 'SV', color: '#e3a832', background: 'rgba(227, 168, 50, 0.2)' },
-        txt: { label: 'TX', color: '#9da5b4', background: 'rgba(157, 165, 180, 0.2)' },
+function resolveVscodeLikeIcon(kind: 'file' | 'folder' | 'folderExpanded', name: string): VscodeLikeIcon | null {
+    const lowerName = name.toLowerCase();
+
+    if (kind === 'folder' || kind === 'folderExpanded') {
+        const folderVisuals: Record<string, { color: string; dotColor?: string }> = {
+            '.next': { color: '#5ea1ff', dotColor: '#3b82f6' },
+            'node_modules': { color: '#73d291', dotColor: '#22c55e' },
+            'public': { color: '#b49efc', dotColor: '#8b5cf6' },
+            src: { color: '#ffb86c', dotColor: '#f97316' },
+            '.git': { color: '#f38ba8', dotColor: '#ef4444' },
+        };
+
+        const visual = folderVisuals[lowerName];
+        return {
+            type: 'codicon',
+            codicon: kind === 'folderExpanded' ? 'folder-opened' : 'folder',
+            color: visual?.color || '#dcb67a',
+            dotColor: visual?.dotColor,
+        };
+    }
+
+    const fileNameMap: Record<string, VscodeLikeIcon> = {
+        'package.json': { type: 'badge', label: 'NPM', color: '#051b11', background: '#78e5a9' },
+        'package-lock.json': { type: 'badge', label: 'LCK', color: '#f4f5f7', background: '#475569' },
+        'tsconfig.json': { type: 'badge', label: 'TS', color: '#ffffff', background: '#3178c6' },
+        'next.config.ts': { type: 'badge', label: 'NX', color: '#ffffff', background: '#3f3f46' },
+        'next.config.js': { type: 'badge', label: 'NX', color: '#ffffff', background: '#3f3f46' },
+        '.gitignore': { type: 'badge', label: 'GIT', color: '#111827', background: '#fb923c' },
+        '.env': { type: 'badge', label: 'ENV', color: '#0f172a', background: '#86efac' },
+        '.env.local': { type: 'badge', label: 'ENV', color: '#0f172a', background: '#86efac' },
+        'readme.md': { type: 'badge', label: 'MD', color: '#f8fafc', background: '#2563eb' },
+        'license': { type: 'badge', label: 'TXT', color: '#f8fafc', background: '#64748b' },
     };
-    return map[ext] || { label: 'FI', color: '#9da5b4', background: 'rgba(157, 165, 180, 0.2)' };
+
+    const byFileName = fileNameMap[lowerName];
+    if (byFileName) return byFileName;
+
+    const ext = lowerName.endsWith('.d.ts')
+        ? 'd.ts'
+        : (lowerName.split('.').pop() || '');
+
+    const extensionMap: Record<string, VscodeLikeIcon> = {
+        ts: { type: 'badge', label: 'TS', color: '#ffffff', background: '#3178c6' },
+        'd.ts': { type: 'badge', label: 'DT', color: '#ffffff', background: '#2563eb' },
+        tsx: { type: 'badge', label: 'TSX', color: '#ffffff', background: '#2563eb' },
+        js: { type: 'badge', label: 'JS', color: '#111827', background: '#facc15' },
+        jsx: { type: 'badge', label: 'JSX', color: '#111827', background: '#fcd34d' },
+        json: { type: 'badge', label: '{}', color: '#111827', background: '#f59e0b' },
+        md: { type: 'badge', label: 'MD', color: '#f8fafc', background: '#2563eb' },
+        css: { type: 'badge', label: 'CSS', color: '#f8fafc', background: '#0ea5e9' },
+        scss: { type: 'badge', label: 'SC', color: '#f8fafc', background: '#ec4899' },
+        html: { type: 'badge', label: 'HTML', color: '#111827', background: '#fb923c' },
+        yaml: { type: 'badge', label: 'YML', color: '#f8fafc', background: '#64748b' },
+        yml: { type: 'badge', label: 'YML', color: '#f8fafc', background: '#64748b' },
+        svg: { type: 'badge', label: 'SVG', color: '#111827', background: '#a3e635' },
+        py: { type: 'badge', label: 'PY', color: '#f8fafc', background: '#3776ab' },
+        go: { type: 'badge', label: 'GO', color: '#0f172a', background: '#7dd3fc' },
+        rs: { type: 'badge', label: 'RS', color: '#f8fafc', background: '#7c3aed' },
+        java: { type: 'badge', label: 'JV', color: '#f8fafc', background: '#ea580c' },
+        sh: { type: 'badge', label: 'SH', color: '#f8fafc', background: '#334155' },
+        sql: { type: 'badge', label: 'SQL', color: '#f8fafc', background: '#0f766e' },
+    };
+
+    return extensionMap[ext] || null;
+}
+
+function resolveSetiIcon(theme: SetiIconTheme | null | undefined, kind: 'file' | 'folder' | 'folderExpanded', name: string) {
+    if (!theme?.iconDefinitions) return null;
+
+    const normalizedName = name.toLowerCase();
+    const iconId = kind === 'file'
+        ? resolveSetiFileIconId(theme, normalizedName)
+        : resolveSetiFolderIconId(theme, normalizedName, kind === 'folderExpanded');
+
+    if (!iconId) return null;
+
+    const definition = theme.iconDefinitions[iconId];
+    if (!definition?.fontCharacter) return null;
+
+    const glyph = fontCharacterToGlyph(definition.fontCharacter);
+    if (!glyph) return null;
+
+    return {
+        glyph,
+        color: definition.fontColor,
+    };
+}
+
+function resolveSetiFileIconId(theme: SetiIconTheme, lowerName: string): string {
+    const exactMatch = theme.fileNames?.[lowerName];
+    if (exactMatch) return exactMatch;
+
+    const parts = lowerName.split('.');
+    if (parts.length > 1) {
+        for (let i = 1; i < parts.length; i += 1) {
+            const ext = parts.slice(i).join('.');
+            const byExtension = theme.fileExtensions?.[ext];
+            if (byExtension) return byExtension;
+        }
+    }
+
+    return theme.file || '';
+}
+
+function resolveSetiFolderIconId(theme: SetiIconTheme, lowerName: string, expanded: boolean): string {
+    if (expanded) {
+        const folderNameExpanded = theme.folderNamesExpanded?.[lowerName];
+        if (folderNameExpanded) return folderNameExpanded;
+        return theme.folderExpanded || theme.rootFolderExpanded || theme.folder || '';
+    }
+
+    const folderName = theme.folderNames?.[lowerName];
+    if (folderName) return folderName;
+
+    return theme.folder || theme.rootFolder || '';
+}
+
+function fontCharacterToGlyph(fontCharacter: string): string {
+    const normalized = fontCharacter.replace('\\', '');
+    const codepoint = Number.parseInt(normalized, 16);
+    if (Number.isNaN(codepoint)) return '';
+    return String.fromCodePoint(codepoint);
 }
 
 /** Get language name for status bar */
@@ -1393,12 +1819,66 @@ function getFileList(node: FileNode | null): string[] {
     return results;
 }
 
+function parseResource(resource: unknown): { label: string; url?: string } {
+    if (resource == null) return { label: 'Reference' };
+
+    if (typeof resource === 'string') {
+        return parseResourceString(resource);
+    }
+
+    if (typeof resource === 'number' || typeof resource === 'boolean') {
+        return { label: String(resource) };
+    }
+
+    if (Array.isArray(resource)) {
+        const firstUsable = resource.find(item => item != null);
+        return parseResource(firstUsable ?? 'Reference');
+    }
+
+    if (typeof resource === 'object') {
+        const record = resource as Record<string, unknown>;
+        const url = typeof record.url === 'string'
+            ? record.url
+            : (typeof record.href === 'string' ? record.href : undefined);
+        const label = typeof record.label === 'string'
+            ? record.label
+            : (typeof record.title === 'string' ? record.title : undefined);
+
+        if (label || url) {
+            return parseResourceString(label && url ? `[${label}](${url})` : (label || url || 'Reference'));
+        }
+    }
+
+    return { label: 'Reference' };
+}
+
+function parseResourceString(raw: string): { label: string; url?: string } {
+    const trimmed = raw.trim();
+    if (!trimmed) return { label: 'Reference' };
+
+    const markdownLink = trimmed.match(/^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/i);
+    if (markdownLink) {
+        return { label: markdownLink[1], url: markdownLink[2] };
+    }
+
+    const firstUrl = trimmed.match(/https?:\/\/[^\s)]+/i);
+    if (firstUrl) {
+        const normalizedUrl = firstUrl[0].replace(/[),.;]+$/, '');
+        const label = trimmed.replace(firstUrl[0], '').replace(/^[\s:–-]+|[\s:–-]+$/g, '');
+        return { label: label || normalizedUrl, url: normalizedUrl };
+    }
+
+    return { label: trimmed };
+}
+
 /** Very simple markdown-to-HTML (bold, italic, code, headings, links) */
 function simpleMarkdown(md: string): string {
     return md
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
+        .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer noopener">$1</a>')
+        .replace(/(^|[\s(])(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noreferrer noopener">$2</a>')
         .replace(/^### (.+)$/gm, '<h3>$1</h3>')
         .replace(/^## (.+)$/gm, '<h2>$1</h2>')
         .replace(/^# (.+)$/gm, '<h1>$1</h1>')

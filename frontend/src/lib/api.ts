@@ -41,7 +41,16 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export const api = {
     repos: {
         ingest: (gitUrl: string, name?: string) =>
-            request<{ repoId: string; status: string; fileCount: number }>('/repos', {
+            request<{
+                repoId: string;
+                status: string;
+                fileCount: number;
+                commitSha?: string;
+                storyboardId?: string | null;
+                cached?: boolean;
+                reused?: boolean;
+                reusedFromRepoId?: string;
+            }>('/repos', {
                 method: 'POST',
                 body: JSON.stringify({ gitUrl, name }),
             }),

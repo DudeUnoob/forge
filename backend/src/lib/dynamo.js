@@ -4,6 +4,7 @@ import {
     GetCommand,
     PutCommand,
     QueryCommand,
+    ScanCommand,
     UpdateCommand,
     DeleteCommand,
 } from '@aws-sdk/lib-dynamodb';
@@ -51,6 +52,16 @@ export async function queryItems(tableName, keyCondition, expressionValues, opti
         ...options,
     };
     const result = await docClient.send(new QueryCommand(params));
+    return result.Items || [];
+}
+
+export async function scanItems(tableName, options = {}) {
+    const params = {
+        TableName: tableName,
+        ...options,
+    };
+
+    const result = await docClient.send(new ScanCommand(params));
     return result.Items || [];
 }
 
