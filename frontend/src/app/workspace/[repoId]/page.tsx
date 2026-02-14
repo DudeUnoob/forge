@@ -22,17 +22,11 @@ interface SetiIconTheme {
     fileNames?: Record<string, string>;
     folderNames?: Record<string, string>;
     folderNamesExpanded?: Record<string, string>;
+    languageIds?: Record<string, string>;
     iconDefinitions?: Record<string, SetiIconDefinition>;
 }
 
-interface VscodeLikeIcon {
-    type: 'badge' | 'codicon';
-    label?: string;
-    codicon?: string;
-    color?: string;
-    background?: string;
-    dotColor?: string;
-}
+
 
 interface MermaidRenderResult {
     svg: string;
@@ -52,7 +46,7 @@ declare global {
     }
 }
 
-const SETI_THEME_URL = 'https://cdn.jsdelivr.net/gh/microsoft/vscode@main/extensions/theme-seti/icons/vs-seti-icon-theme.json';
+const SETI_THEME_URL = '/fonts/vs-seti-icon-theme.json';
 const MERMAID_CDN_URL = 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js';
 const FILE_CONTENT_CACHE_LIMIT = 80;
 const PREFETCH_BATCH_SIZE = 20;
@@ -1241,178 +1235,151 @@ function StoryboardPanel({
 
     return (
         <div className="block-detail animate-fade-in">
-            <div className="block-navigation">
-                <button type="button" className="btn-secondary block-nav-btn" onClick={onGoPrev} disabled={!canGoPrev}>
-                    ← Previous
-                </button>
-                <div className="block-nav-status">
-                    {Math.max(1, activeBlockIndex + 1)} / {blocks.length}
-                </div>
-                <button type="button" className="btn-secondary block-nav-btn" onClick={onGoNext} disabled={!canGoNext}>
-                    Next →
-                </button>
-            </div>
-
-            {nextBlockLocked && (
-                <div className="sequential-hint">
-                    <Codicon name="lock" />
-                    Complete this block to unlock the next step.
-                </div>
-            )}
-
-            <div className="block-detail-header">
-                <div className="block-detail-meta">
-                    <span className="block-time">Step {Math.max(1, activeBlockIndex + 1)} of {blocks.length}</span>
-                    <span className="block-time">~{currentBlock.estimatedMinutes} min</span>
-                </div>
-                <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                    {currentBlock.roleTags?.map(tag => (
-                        <span key={tag} className={`badge badge-${tag}`}>{tag}</span>
-                    ))}
-                </div>
-                <div className="block-detail-title">{currentBlock.title}</div>
-                <div className="block-detail-objective">{currentBlock.objective}</div>
-            </div>
-
-            <div className="block-detail-section">
-                <div className="block-detail-section-title">Explanation</div>
-                <div className="markdown-content">
-                    <div dangerouslySetInnerHTML={{ __html: simpleMarkdown(currentBlock.explanationMarkdown || '') }} />
-                </div>
-            </div>
-
-            {currentBlock.mermaidDiagram && (
-                <div className="block-detail-section">
-                    <div className="block-detail-section-title">Diagram</div>
-                    <div className="mermaid-container">
-                        <MermaidDiagram diagram={currentBlock.mermaidDiagram} />
+            {/* ── Sticky Header: Nav + Progress ── */}
+            <div className="block-detail-sticky-header">
+                <div className="block-navigation">
+                    <button type="button" className="btn-secondary block-nav-btn" onClick={onGoPrev} disabled={!canGoPrev}>
+                        ← Previous
+                    </button>
+                    <div className="block-nav-status">
+                        {Math.max(1, activeBlockIndex + 1)} / {blocks.length}
                     </div>
+                    <button type="button" className="btn-secondary block-nav-btn" onClick={onGoNext} disabled={!canGoNext}>
+                        Next →
+                    </button>
                 </div>
-            )}
+                <div className="block-progress-bar">
+                    <div className="block-progress-fill" style={{ width: `${progressPercent}%` }} />
+                </div>
+                <div className="block-progress-label">{completedCount} of {blocks.length} completed</div>
+            </div>
 
-            {currentBlock.keyFiles?.length > 0 && (
-                <div className="block-detail-section">
-                    <div className="block-detail-section-title">Key Files</div>
-                    <div className="block-files-list">
-                        {currentBlock.keyFiles.map(filePath => (
-                            <button key={filePath} type="button" className="block-file-link" onClick={() => onOpenFile(filePath)}>
-                                <SetiIcon theme={setiTheme} kind="file" name={getFileName(filePath)} className="inline-file-icon" /> {filePath}
-                            </button>
+            {/* ── Scrollable Content ── */}
+            <div className="block-detail-scrollable">
+                {nextBlockLocked && (
+                    <div className="sequential-hint">
+                        <Codicon name="lock" />
+                        Complete this block to unlock the next step.
+                    </div>
+                )}
+
+                <div className="block-detail-header">
+                    <div className="block-detail-meta">
+                        <span className="block-time">Step {Math.max(1, activeBlockIndex + 1)} of {blocks.length}</span>
+                        <span className="block-time">~{currentBlock.estimatedMinutes} min</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                        {currentBlock.roleTags?.map(tag => (
+                            <span key={tag} className={`badge badge-${tag}`}>{tag}</span>
                         ))}
                     </div>
+                    <div className="block-detail-title">{currentBlock.title}</div>
+                    <div className="block-detail-objective">{currentBlock.objective}</div>
                 </div>
-            )}
 
-            {currentBlock.resources?.length > 0 && (
                 <div className="block-detail-section">
-                    <div className="block-detail-section-title">Resources</div>
-                    <div className="resource-list">
-                        {currentBlock.resources.map((resource, index) => {
-                            const parsed = parseResource(resource);
-                            if (!parsed.url) {
+                    <div className="block-detail-section-title">Explanation</div>
+                    <div className="markdown-content">
+                        <div dangerouslySetInnerHTML={{ __html: simpleMarkdown(currentBlock.explanationMarkdown || '') }} />
+                    </div>
+                </div>
+
+                {currentBlock.mermaidDiagram && (
+                    <div className="block-detail-section">
+                        <div className="block-detail-section-title">Diagram</div>
+                        <div className="mermaid-container">
+                            <MermaidDiagram diagram={currentBlock.mermaidDiagram} />
+                        </div>
+                    </div>
+                )}
+
+                {currentBlock.keyFiles?.length > 0 && (
+                    <div className="block-detail-section">
+                        <div className="block-detail-section-title">Key Files</div>
+                        <div className="block-files-list">
+                            {currentBlock.keyFiles.map(filePath => (
+                                <button key={filePath} type="button" className="block-file-link" onClick={() => onOpenFile(filePath)}>
+                                    <SetiIcon theme={setiTheme} kind="file" name={getFileName(filePath)} className="inline-file-icon" /> {filePath}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {currentBlock.resources?.length > 0 && (
+                    <div className="block-detail-section">
+                        <div className="block-detail-section-title">Resources</div>
+                        <div className="resource-list">
+                            {currentBlock.resources.map((resource, index) => {
+                                const parsed = parseResource(resource);
+                                if (!parsed.url) {
+                                    return (
+                                        <span key={`${resource}-${index}`} className="resource-link resource-link-muted">
+                                            <Codicon name="link-external" />
+                                            {parsed.label}
+                                        </span>
+                                    );
+                                }
+
                                 return (
-                                    <span key={`${resource}-${index}`} className="resource-link resource-link-muted">
+                                    <a
+                                        key={`${resource}-${index}`}
+                                        href={parsed.url}
+                                        className="resource-link"
+                                        target="_blank"
+                                        rel="noreferrer noopener"
+                                    >
                                         <Codicon name="link-external" />
                                         {parsed.label}
-                                    </span>
+                                    </a>
                                 );
-                            }
-
-                            return (
-                                <a
-                                    key={`${resource}-${index}`}
-                                    href={parsed.url}
-                                    className="resource-link"
-                                    target="_blank"
-                                    rel="noreferrer noopener"
-                                >
-                                    <Codicon name="link-external" />
-                                    {parsed.label}
-                                </a>
-                            );
-                        })}
+                            })}
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
 
-            {currentBlock.keyTakeaways && currentBlock.keyTakeaways.length > 0 && (
-                <div className="block-detail-section">
-                    <div className="block-detail-section-title">Key Takeaways</div>
-                    <div className="takeaway-list">
-                        {currentBlock.keyTakeaways.map((takeaway, i) => (
-                            <div key={i} className="takeaway-item">
-                                <span className="takeaway-icon">✓</span>
-                                <span>{takeaway}</span>
-                            </div>
-                        ))}
+                {currentBlock.keyTakeaways && currentBlock.keyTakeaways.length > 0 && (
+                    <div className="block-detail-section">
+                        <div className="block-detail-section-title">Key Takeaways</div>
+                        <div className="takeaway-list">
+                            {currentBlock.keyTakeaways.map((takeaway, i) => (
+                                <div key={i} className="takeaway-item">
+                                    <span className="takeaway-icon">✓</span>
+                                    <span>{takeaway}</span>
+                                </div>
+                            ))}
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
 
-            <div className="block-detail-section">
-                <div className="block-detail-section-title">Chat About This Block</div>
-                <ChatPanel
-                    messages={chatMessages}
-                    input={chatInput}
-                    loading={chatLoading}
-                    activeBlock={currentBlock}
-                    onInputChange={onChatInputChange}
-                    onSend={onSendChat}
-                    embedded
-                />
-            </div>
-
-            <button
-                className={currentBlockComplete ? 'btn-secondary' : 'btn-primary'}
-                onClick={() => onToggleComplete(currentBlock.blockId)}
-                style={{ width: '100%', marginTop: 16 }}
-            >
-                {currentBlockComplete ? '↺ Mark Incomplete' : '✓ Mark as Complete'}
-            </button>
-
-            <div className="guided-bottom-progress">
-                <div className="guided-bottom-progress-meta">{completedCount} of {blocks.length} completed</div>
-                <LegoProgress
-                    blocks={blocks}
-                    activeBlock={currentBlock}
-                    completedBlocks={completedBlocks}
-                    unlockedBlockIndex={unlockedBlockIndex}
-                />
-            </div>
-        </div>
-    );
-}
-
-// ---- Lego Progress Visualization ----
-function LegoProgress({ blocks, activeBlock, completedBlocks, unlockedBlockIndex }: {
-    blocks: StoryboardBlock[];
-    activeBlock: StoryboardBlock;
-    completedBlocks: Set<string>;
-    unlockedBlockIndex: number;
-}) {
-    return (
-        <div className="lego-progress">
-            {blocks.map((block, index) => {
-                const isCompleted = completedBlocks.has(block.blockId);
-                const isActive = block.blockId === activeBlock.blockId;
-                const isLocked = index > unlockedBlockIndex;
-
-                let stateClass = 'lego-brick--locked';
-                if (isCompleted) stateClass = 'lego-brick--completed';
-                else if (isActive) stateClass = 'lego-brick--active';
-                else if (!isLocked) stateClass = '';
-
-                return (
-                    <div
-                        key={block.blockId}
-                        className={`lego-brick ${stateClass}`}
-                        title={`${index + 1}. ${block.title}${isCompleted ? ' ✓' : isLocked ? ' 🔒' : ''}`}
+                <div className="block-detail-section block-chat-section">
+                    <div className="block-detail-section-title">Chat About This Block</div>
+                    <ChatPanel
+                        messages={chatMessages}
+                        input={chatInput}
+                        loading={chatLoading}
+                        activeBlock={currentBlock}
+                        onInputChange={onChatInputChange}
+                        onSend={onSendChat}
+                        embedded
                     />
-                );
-            })}
+                </div>
+            </div>
+
+            {/* ── Sticky Footer: Mark Complete ── */}
+            <div className="block-detail-sticky-footer">
+                <button
+                    className={currentBlockComplete ? 'btn-secondary' : 'btn-primary'}
+                    onClick={() => onToggleComplete(currentBlock.blockId)}
+                    style={{ width: '100%' }}
+                >
+                    {currentBlockComplete ? '↺ Mark Incomplete' : '✓ Mark as Complete'}
+                </button>
+            </div>
         </div>
     );
 }
+
 
 // ---- Chat Panel ----
 function ChatPanel({ messages, input, loading, activeBlock, onInputChange, onSend, embedded = false }: {
@@ -1698,11 +1665,6 @@ function SetiIcon({ theme, kind, name, className = '' }: {
     name: string;
     className?: string;
 }) {
-    const vscodeLikeIcon = resolveVscodeLikeIcon(kind, name);
-    if (vscodeLikeIcon) {
-        return renderVscodeLikeIcon(vscodeLikeIcon, className);
-    }
-
     const iconMeta = resolveSetiIcon(theme, kind, name);
 
     if (iconMeta?.glyph) {
@@ -1714,98 +1676,42 @@ function SetiIcon({ theme, kind, name, className = '' }: {
         );
     }
 
+    // Fallback: codicon icons with VS Code-like folder colors
     if (kind === 'folder' || kind === 'folderExpanded') {
-        return <Codicon name={kind === 'folderExpanded' ? 'folder-opened' : 'folder'} className={className} />;
+        const folderColors: Record<string, string> = {
+            'node_modules': '#73d291',
+            'src': '#dcb67a',
+            '.git': '#f38ba8',
+            'public': '#b49efc',
+            '.next': '#5ea1ff',
+            'dist': '#94a3b8',
+            'build': '#94a3b8',
+            'test': '#4ade80',
+            'tests': '#4ade80',
+            '__tests__': '#4ade80',
+            'lib': '#dcb67a',
+            'config': '#94a3b8',
+            'components': '#67e8f9',
+            'pages': '#c084fc',
+            'app': '#fb923c',
+            'api': '#22d3ee',
+            'hooks': '#f472b6',
+            'utils': '#a78bfa',
+            'styles': '#38bdf8',
+            'assets': '#fbbf24',
+        };
+        const color = folderColors[name.toLowerCase()] || '#c5c5c5';
+        return (
+            <span className={`codicon-icon ${className}`.trim()} style={{ color }}>
+                <Codicon name={kind === 'folderExpanded' ? 'folder-opened' : 'folder'} />
+            </span>
+        );
     }
 
     return <Codicon name="file" className={className} />;
 }
 
-function renderVscodeLikeIcon(icon: VscodeLikeIcon, className = '') {
-    if (icon.type === 'badge') {
-        return (
-            <span
-                className={`vscode-badge-icon ${className}`.trim()}
-                style={{ color: icon.color, backgroundColor: icon.background }}
-            >
-                {icon.label}
-            </span>
-        );
-    }
-
-    return (
-        <span className={`vscode-codicon-icon ${className}`.trim()} style={{ color: icon.color }}>
-            <Codicon name={icon.codicon || 'file'} />
-            {icon.dotColor && <span className="vscode-codicon-dot" style={{ backgroundColor: icon.dotColor }} />}
-        </span>
-    );
-}
-
-function resolveVscodeLikeIcon(kind: 'file' | 'folder' | 'folderExpanded', name: string): VscodeLikeIcon | null {
-    const lowerName = name.toLowerCase();
-
-    if (kind === 'folder' || kind === 'folderExpanded') {
-        const folderVisuals: Record<string, { color: string; dotColor?: string }> = {
-            '.next': { color: '#5ea1ff', dotColor: '#3b82f6' },
-            'node_modules': { color: '#73d291', dotColor: '#22c55e' },
-            'public': { color: '#b49efc', dotColor: '#8b5cf6' },
-            src: { color: '#ffb86c', dotColor: '#f97316' },
-            '.git': { color: '#f38ba8', dotColor: '#ef4444' },
-        };
-
-        const visual = folderVisuals[lowerName];
-        return {
-            type: 'codicon',
-            codicon: kind === 'folderExpanded' ? 'folder-opened' : 'folder',
-            color: visual?.color || '#dcb67a',
-            dotColor: visual?.dotColor,
-        };
-    }
-
-    const fileNameMap: Record<string, VscodeLikeIcon> = {
-        'package.json': { type: 'badge', label: 'NPM', color: '#051b11', background: '#78e5a9' },
-        'package-lock.json': { type: 'badge', label: 'LCK', color: '#f4f5f7', background: '#475569' },
-        'tsconfig.json': { type: 'badge', label: 'TS', color: '#ffffff', background: '#3178c6' },
-        'next.config.ts': { type: 'badge', label: 'NX', color: '#ffffff', background: '#3f3f46' },
-        'next.config.js': { type: 'badge', label: 'NX', color: '#ffffff', background: '#3f3f46' },
-        '.gitignore': { type: 'badge', label: 'GIT', color: '#111827', background: '#fb923c' },
-        '.env': { type: 'badge', label: 'ENV', color: '#0f172a', background: '#86efac' },
-        '.env.local': { type: 'badge', label: 'ENV', color: '#0f172a', background: '#86efac' },
-        'readme.md': { type: 'badge', label: 'MD', color: '#f8fafc', background: '#2563eb' },
-        'license': { type: 'badge', label: 'TXT', color: '#f8fafc', background: '#64748b' },
-    };
-
-    const byFileName = fileNameMap[lowerName];
-    if (byFileName) return byFileName;
-
-    const ext = lowerName.endsWith('.d.ts')
-        ? 'd.ts'
-        : (lowerName.split('.').pop() || '');
-
-    const extensionMap: Record<string, VscodeLikeIcon> = {
-        ts: { type: 'badge', label: 'TS', color: '#ffffff', background: '#3178c6' },
-        'd.ts': { type: 'badge', label: 'DT', color: '#ffffff', background: '#2563eb' },
-        tsx: { type: 'badge', label: 'TSX', color: '#ffffff', background: '#2563eb' },
-        js: { type: 'badge', label: 'JS', color: '#111827', background: '#facc15' },
-        jsx: { type: 'badge', label: 'JSX', color: '#111827', background: '#fcd34d' },
-        json: { type: 'badge', label: '{}', color: '#111827', background: '#f59e0b' },
-        md: { type: 'badge', label: 'MD', color: '#f8fafc', background: '#2563eb' },
-        css: { type: 'badge', label: 'CSS', color: '#f8fafc', background: '#0ea5e9' },
-        scss: { type: 'badge', label: 'SC', color: '#f8fafc', background: '#ec4899' },
-        html: { type: 'badge', label: 'HTML', color: '#111827', background: '#fb923c' },
-        yaml: { type: 'badge', label: 'YML', color: '#f8fafc', background: '#64748b' },
-        yml: { type: 'badge', label: 'YML', color: '#f8fafc', background: '#64748b' },
-        svg: { type: 'badge', label: 'SVG', color: '#111827', background: '#a3e635' },
-        py: { type: 'badge', label: 'PY', color: '#f8fafc', background: '#3776ab' },
-        go: { type: 'badge', label: 'GO', color: '#0f172a', background: '#7dd3fc' },
-        rs: { type: 'badge', label: 'RS', color: '#f8fafc', background: '#7c3aed' },
-        java: { type: 'badge', label: 'JV', color: '#f8fafc', background: '#ea580c' },
-        sh: { type: 'badge', label: 'SH', color: '#f8fafc', background: '#334155' },
-        sql: { type: 'badge', label: 'SQL', color: '#f8fafc', background: '#0f766e' },
-    };
-
-    return extensionMap[ext] || null;
-}
+// resolveSetiIcon, resolveSetiFileIconId, resolveSetiFolderIconId handle all icon resolution
 
 function resolveSetiIcon(theme: SetiIconTheme | null | undefined, kind: 'file' | 'folder' | 'folderExpanded', name: string) {
     if (!theme?.iconDefinitions) return null;
@@ -1830,9 +1736,11 @@ function resolveSetiIcon(theme: SetiIconTheme | null | undefined, kind: 'file' |
 }
 
 function resolveSetiFileIconId(theme: SetiIconTheme, lowerName: string): string {
+    // 1. Exact file name match (highest priority)
     const exactMatch = theme.fileNames?.[lowerName];
     if (exactMatch) return exactMatch;
 
+    // 2. File extension match (compound extensions tried longest-first)
     const parts = lowerName.split('.');
     if (parts.length > 1) {
         for (let i = 1; i < parts.length; i += 1) {
@@ -1842,8 +1750,72 @@ function resolveSetiFileIconId(theme: SetiIconTheme, lowerName: string): string 
         }
     }
 
+    // 3. Language ID fallback — maps file extension to VS Code language ID
+    if (theme.languageIds && parts.length > 1) {
+        const ext = parts[parts.length - 1];
+        const langId = EXT_TO_LANGUAGE_ID[ext];
+        if (langId) {
+            const byLang = theme.languageIds[langId];
+            if (byLang) return byLang;
+        }
+    }
+
     return theme.file || '';
 }
+
+// Maps common file extensions to VS Code language identifiers
+// Used to resolve icons through the seti theme's languageIds map
+const EXT_TO_LANGUAGE_ID: Record<string, string> = {
+    ts: 'typescript', tsx: 'typescriptreact',
+    js: 'javascript', mjs: 'javascript', cjs: 'javascript', jsx: 'javascriptreact',
+    py: 'python', pyw: 'python',
+    css: 'css', scss: 'scss', sass: 'sass', less: 'less', styl: 'stylus',
+    html: 'html', htm: 'html',
+    json: 'json', jsonc: 'jsonc', jsonl: 'jsonl',
+    md: 'markdown', mdx: 'markdown',
+    yaml: 'yaml', yml: 'yaml',
+    xml: 'xml', xsl: 'xml', xsd: 'xml', svg: 'xml',
+    go: 'go',
+    rs: 'rust',
+    java: 'java',
+    kt: 'kotlin', kts: 'kotlin',
+    rb: 'ruby', erb: 'erb',
+    c: 'c', h: 'c',
+    cpp: 'cpp', cc: 'cpp', cxx: 'cpp', hpp: 'cpp',
+    cs: 'csharp',
+    swift: 'swift',
+    dart: 'dart',
+    r: 'r', R: 'r',
+    lua: 'lua',
+    sh: 'shellscript', bash: 'shellscript', zsh: 'shellscript',
+    ps1: 'powershell', psm1: 'powershell',
+    sql: 'sql',
+    php: 'php',
+    pl: 'perl', pm: 'perl',
+    ex: 'elixir', exs: 'elixir',
+    elm: 'elm',
+    hs: 'haskell', lhs: 'haskell',
+    clj: 'clojure', cljs: 'clojure', cljc: 'clojure',
+    coffee: 'coffeescript',
+    bat: 'bat', cmd: 'bat',
+    fs: 'fsharp', fsx: 'fsharp',
+    ml: 'ocaml', mli: 'ocaml',
+    groovy: 'groovy',
+    vue: 'vue',
+    tf: 'terraform',
+    tex: 'tex', latex: 'latex',
+    m: 'objective-c', mm: 'objective-cpp',
+    makefile: 'makefile',
+    dockerfile: 'dockerfile',
+    haml: 'haml',
+    pug: 'jade', jade: 'jade',
+    hbs: 'handlebars', handlebars: 'handlebars',
+    mustache: 'mustache',
+    njk: 'nunjucks', nunjucks: 'nunjucks',
+    jinja: 'jinja', j2: 'jinja',
+    vala: 'vala',
+    env: 'dotenv',
+};
 
 function resolveSetiFolderIconId(theme: SetiIconTheme, lowerName: string, expanded: boolean): string {
     if (expanded) {
@@ -1859,9 +1831,12 @@ function resolveSetiFolderIconId(theme: SetiIconTheme, lowerName: string, expand
 }
 
 function fontCharacterToGlyph(fontCharacter: string): string {
-    const normalized = fontCharacter.replace('\\', '');
-    const codepoint = Number.parseInt(normalized, 16);
-    if (Number.isNaN(codepoint)) return '';
+    // Seti JSON stores as "\\E001" → parsed JSON yields "\E001"
+    // Strip leading backslash(es) and any non-hex prefix
+    const hex = fontCharacter.replace(/^\\+/, '').replace(/[^0-9a-fA-F]/g, '');
+    if (!hex) return '';
+    const codepoint = Number.parseInt(hex, 16);
+    if (Number.isNaN(codepoint) || codepoint === 0) return '';
     return String.fromCodePoint(codepoint);
 }
 
