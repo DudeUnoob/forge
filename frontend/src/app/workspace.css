@@ -24,7 +24,7 @@
     --tab-active-bg: #1e1e1e;
     --tab-inactive-bg: #2d2d2d;
 
-    --text-primary: #cccccc;
+    --text-primary: #e0e0e0;
     --text-secondary: #a5a5a5;
     --text-muted: #858585;
     --text-inverse: #ffffff;
@@ -331,7 +331,7 @@
     height: 12px;
     font-size: 12px;
     color: var(--accent);
-    opacity: 0.7;
+    /* opacity: 0.7; removed for vibrancy */
 }
 
 .sidebar-search {
@@ -910,7 +910,7 @@
 }
 
 .block-item.locked {
-    opacity: 0.6;
+    opacity: 0.8;
     cursor: not-allowed;
 }
 
@@ -920,9 +920,7 @@
     color: var(--text-muted);
 }
 
-.block-item.completed {
-    opacity: 0.72;
-}
+
 
 .block-check {
     width: 18px;

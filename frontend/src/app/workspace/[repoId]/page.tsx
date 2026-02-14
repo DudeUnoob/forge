@@ -7,6 +7,31 @@ import type { Repo, FileNode, Storyboard, StoryboardBlock, ChatMessage, Role } f
 import { ROLES } from '@/lib/types';
 import '../../workspace.css';
 
+// ---- Syntax Highlighting ----
+import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
+import ts from 'react-syntax-highlighter/dist/esm/languages/prism/typescript';
+import js from 'react-syntax-highlighter/dist/esm/languages/prism/javascript';
+import py from 'react-syntax-highlighter/dist/esm/languages/prism/python';
+import css from 'react-syntax-highlighter/dist/esm/languages/prism/css';
+import json from 'react-syntax-highlighter/dist/esm/languages/prism/json';
+import md from 'react-syntax-highlighter/dist/esm/languages/prism/markdown';
+import sql from 'react-syntax-highlighter/dist/esm/languages/prism/sql';
+import bash from 'react-syntax-highlighter/dist/esm/languages/prism/bash';
+import yaml from 'react-syntax-highlighter/dist/esm/languages/prism/yaml';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
+SyntaxHighlighter.registerLanguage('typescript', ts);
+SyntaxHighlighter.registerLanguage('typescriptreact', ts);
+SyntaxHighlighter.registerLanguage('javascript', js);
+SyntaxHighlighter.registerLanguage('javascriptreact', js);
+SyntaxHighlighter.registerLanguage('python', py);
+SyntaxHighlighter.registerLanguage('css', css);
+SyntaxHighlighter.registerLanguage('json', json);
+SyntaxHighlighter.registerLanguage('markdown', md);
+SyntaxHighlighter.registerLanguage('sql', sql);
+SyntaxHighlighter.registerLanguage('bash', bash);
+SyntaxHighlighter.registerLanguage('yaml', yaml);
+
 interface SetiIconDefinition {
     fontCharacter?: string;
     fontColor?: string;
@@ -1144,18 +1169,22 @@ function CodeViewer({ content, filePath, highlightedLines }: {
 
     return (
         <div className="code-viewer">
-            {lines.map((line, i) => (
-                <div
-                    key={i}
-                    className={`code-line ${highlightedLines.has(i + 1) ? 'highlighted' : ''}`}
-                >
-                    <span className="code-line-number">{i + 1}</span>
-                    <span
-                        className="code-line-content"
-                        dangerouslySetInnerHTML={{ __html: highlightSyntax(line, lang) }}
-                    />
-                </div>
-            ))}
+            <SyntaxHighlighter
+                language={getLanguageFromPath(filePath)}
+                style={vscDarkPlus}
+                customStyle={{ margin: 0, padding: '10px 0', background: 'transparent', fontSize: '13px', lineHeight: '1.5' }}
+                showLineNumbers={true}
+                lineNumberStyle={{ minWidth: '3.5em', paddingRight: '1em', color: '#6e7681', textAlign: 'right' }}
+                wrapLines={true}
+                lineProps={(lineNumber) => ({
+                    style: {
+                        display: 'block',
+                        backgroundColor: highlightedLines.has(lineNumber) ? 'rgba(255, 255, 0, 0.1)' : undefined
+                    }
+                })}
+            >
+                {content}
+            </SyntaxHighlighter>
         </div>
     );
 }
@@ -2036,60 +2065,7 @@ function getLanguageFromPath(path: string): string {
     return langMap[ext] || 'text';
 }
 
-/** Basic syntax highlighting using regex */
-function highlightSyntax(line: string, lang: string): string {
-    // Escape HTML
-    let html = line
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
 
-    if (lang === 'text' || lang === 'markdown' || lang === 'json') {
-        // JSON: highlight keys and strings
-        if (lang === 'json') {
-            html = html
-                .replace(/(&quot;|")((?:\\.|[^"\\])*)(&quot;|")(\s*:)/g, '<span class="tok-property">$1$2$3</span>$4')
-                .replace(/(&quot;|")((?:\\.|[^"\\])*)(&quot;|")/g, '<span class="tok-string">$1$2$3</span>')
-                .replace(/\b(true|false|null)\b/g, '<span class="tok-constant">$1</span>')
-                .replace(/\b(\d+\.?\d*)\b/g, '<span class="tok-number">$1</span>');
-        }
-        return html;
-    }
-
-    // Comments: // and #
-    const commentMatch = html.match(/^(\s*)(\/\/.*|#!?.*)/);
-    if (commentMatch) {
-        return `${commentMatch[1]}<span class="tok-comment">${commentMatch[2]}</span>`;
-    }
-    // Multi-line comment markers
-    if (html.trim().startsWith('/*') || html.trim().startsWith('*') || html.trim().startsWith('*/')) {
-        return `<span class="tok-comment">${html}</span>`;
-    }
-
-    // Strings (single and double quoted)
-    html = html.replace(/(["'`])(?:(?!\1|\\).|\\.)*\1/g, '<span class="tok-string">$&</span>');
-
-    // Decorators
-    html = html.replace(/@[\w.]+/g, '<span class="tok-decorator">$&</span>');
-
-    // Keywords
-    const keywords = lang === 'python'
-        ? /\b(def|class|import|from|return|if|elif|else|for|while|try|except|finally|with|as|yield|async|await|raise|pass|break|continue|and|or|not|in|is|lambda|self|True|False|None)\b/g
-        : /\b(const|let|var|function|return|if|else|for|while|do|switch|case|break|continue|class|extends|implements|interface|type|enum|import|export|from|default|async|await|yield|try|catch|finally|throw|new|delete|typeof|instanceof|void|this|super|static|public|private|protected|readonly|abstract|override|get|set|true|false|null|undefined)\b/g;
-
-    html = html.replace(keywords, '<span class="tok-keyword">$&</span>');
-
-    // Numbers
-    html = html.replace(/\b(\d+\.?\d*(?:e[+-]?\d+)?)\b/gi, '<span class="tok-number">$&</span>');
-
-    // Function calls
-    html = html.replace(/\b([a-zA-Z_]\w*)\s*(?=\()/g, '<span class="tok-function">$&</span>');
-
-    // Type annotations (capitalized words, common patterns)
-    html = html.replace(/(?<=:\s*|&lt;|,\s*)([A-Z][a-zA-Z0-9_]*)/g, '<span class="tok-type">$&</span>');
-
-    return html;
-}
 
 /** Collect flat list of file paths from tree */
 function getFileList(node: FileNode | null): string[] {
