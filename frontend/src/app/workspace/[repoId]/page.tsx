@@ -26,6 +26,17 @@ interface SetiIconTheme {
     iconDefinitions?: Record<string, SetiIconDefinition>;
 }
 
+interface SearchMatch {
+    line: number;
+    lineContent: string;
+}
+
+interface SearchResult {
+    file: FileNode; // or just path/name
+    path: string;
+    matches: SearchMatch[];
+}
+
 
 
 interface MermaidRenderResult {
@@ -98,7 +109,18 @@ export default function WorkspacePage() {
     const newFilesTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Building intro state
+
     const [showIntro, setShowIntro] = useState(true);
+
+    // Resize state
+    const [sidebarWidth, setSidebarWidth] = useState(282);
+    const [panelWidth, setPanelWidth] = useState(376);
+    const [isResizing, setIsResizing] = useState<'sidebar' | 'panel' | null>(null);
+
+    // Search state
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+    const [contactSearch, setContactSearch] = useState(false); // trigger for debounce
 
     useEffect(() => {
         let isMounted = true;
@@ -116,6 +138,90 @@ export default function WorkspacePage() {
             isMounted = false;
         };
     }, []);
+
+    // ---- Resize Handlers ----
+    const startResizing = useCallback((type: 'sidebar' | 'panel') => {
+        setIsResizing(type);
+    }, []);
+
+    useEffect(() => {
+        if (!isResizing) return;
+
+        const handleMouseMove = (e: MouseEvent) => {
+            if (isResizing === 'sidebar') {
+                const newWidth = Math.max(160, Math.min(600, e.clientX - 48)); // 48 is activity bar
+                setSidebarWidth(newWidth);
+            } else {
+                const newWidth = Math.max(200, Math.min(800, window.innerWidth - e.clientX));
+                setPanelWidth(newWidth);
+            }
+        };
+
+        const handleMouseUp = () => {
+            setIsResizing(null);
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isResizing]);
+
+    // ---- Search Logic (Client-Side) ----
+    useEffect(() => {
+        if (!searchQuery.trim()) {
+            setSearchResults([]);
+            return;
+        }
+
+        const timer = setTimeout(() => {
+            if (!fileTree) return;
+            const query = searchQuery.toLowerCase();
+            const results: SearchResult[] = [];
+
+            // Helper to walk tree
+            const walk = (node: FileNode) => {
+                if (node.type === 'file' && node.path) {
+                    let matches: SearchMatch[] = [];
+                    let matchedFile = false;
+
+                    // 1. Check filename
+                    if (node.name.toLowerCase().includes(query)) {
+                        matchedFile = true;
+                    }
+
+                    // 2. Check content if cached
+                    const content = fileContentCacheRef.current.get(node.path);
+                    if (content) {
+                        const lines = content.split('\n');
+                        lines.forEach((line, i) => {
+                            if (line.toLowerCase().includes(query)) {
+                                matches.push({ line: i + 1, lineContent: line });
+                            }
+                        });
+                    }
+
+                    if (matchedFile || matches.length > 0) {
+                        results.push({
+                            file: node,
+                            path: node.path,
+                            matches
+                        });
+                    }
+                } else if (node.children) {
+                    node.children.forEach(walk);
+                }
+            };
+
+            walk(fileTree);
+            setSearchResults(results.slice(0, 100)); // Limit results
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [searchQuery, fileTree]);
+
 
     // ---- Add keyboard shortcuts ----
     useEffect(() => {
@@ -504,7 +610,12 @@ export default function WorkspacePage() {
     const activeFile = activeFileIndex >= 0 ? openFiles[activeFileIndex] : null;
 
     return (
-        <div className="workspace">
+        <div
+            className={`workspace ${isResizing ? 'resizing' : ''}`}
+            style={{
+                gridTemplateColumns: `48px ${sidebarCollapsed ? '0px' : `${sidebarWidth}px`} 5px minmax(0, 1fr) 5px ${panelWidth}px`
+            }}
+        >
             {/* ---- Building Intro Overlay ---- */}
             {showIntro && storyboard && (
                 <div className="building-intro">
@@ -572,7 +683,14 @@ export default function WorkspacePage() {
             <div className="activity-bar">
                 <div
                     className={`activity-bar-icon ${sidebarView === 'explorer' && !sidebarCollapsed ? 'active' : ''}`}
-                    onClick={() => { setSidebarView('explorer'); setSidebarCollapsed(false); }}
+                    onClick={() => {
+                        if (sidebarView === 'explorer' && !sidebarCollapsed) {
+                            setSidebarCollapsed(true);
+                        } else {
+                            setSidebarView('explorer');
+                            setSidebarCollapsed(false);
+                        }
+                    }}
                     title="Explorer (⌘B)"
                 >
                     <Codicon name="files" />
@@ -671,6 +789,7 @@ export default function WorkspacePage() {
                         </div>
                     </>
                 )}
+
                 {sidebarView === 'search' && (
                     <>
                         <div className="sidebar-header">
@@ -680,13 +799,52 @@ export default function WorkspacePage() {
                             <input
                                 type="text"
                                 placeholder="Search in repo..."
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
                             />
                         </div>
                         <div className="sidebar-content">
-                            <div className="empty-state">
-                                <div className="empty-state-icon"><Codicon name="search" /></div>
-                                <div className="empty-state-text">Type to search across all files in the repository</div>
-                            </div>
+                            {searchResults.length === 0 ? (
+                                <div className="empty-state">
+                                    <div className="empty-state-icon"><Codicon name="search" /></div>
+                                    <div className="empty-state-text">
+                                        {searchQuery ? 'No results found' : 'Type to search files and cached content'}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="search-results">
+                                    <div className="search-options" style={{ justifyContent: 'space-between', padding: '0 12px 8px' }}>
+                                        <div className="search-match-count" style={{ padding: 0 }}>
+                                            {searchResults.length} {searchResults.length === 1 ? 'result' : 'results'}
+                                        </div>
+                                    </div>
+                                    {searchResults.map((res) => (
+                                        <div key={res.path} className="search-file-group">
+                                            <div
+                                                className="search-file-header"
+                                                onClick={() => openFile(res.path)}
+                                            >
+                                                <div className="icon">
+                                                    <Codicon name="chevron-down" />
+                                                </div>
+                                                <SetiIcon theme={setiTheme} kind="file" name={res.file.name} className="inline-file-icon" />
+                                                <span className="name" title={res.path}>{res.file.name}</span>
+                                                <span className="search-file-count">{res.matches.length > 0 ? res.matches.length : 1}</span>
+                                            </div>
+                                            {res.matches.map((match, idx) => (
+                                                <div
+                                                    key={`${res.path}-${idx}`}
+                                                    className="search-match-item"
+                                                    onClick={() => openFile(res.path)}
+                                                >
+                                                    <span className="search-match-line-num">{match.line}</span>
+                                                    <span className="search-match-text">{match.lineContent.trim().substring(0, 60)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </>
                 )}
@@ -707,6 +865,12 @@ export default function WorkspacePage() {
                     </>
                 )}
             </div>
+
+            {/* Resize Handle (Sidebar) */}
+            <div
+                className={`resize-handle ${isResizing === 'sidebar' ? 'active' : ''}`}
+                onMouseDown={() => startResizing('sidebar')}
+            />
 
             {/* ---- Editor Panel ---- */}
             <div className="editor-panel">
@@ -794,6 +958,12 @@ export default function WorkspacePage() {
                     )}
                 </div>
             </div>
+
+            {/* Resize Handle (Right Panel) */}
+            <div
+                className={`resize-handle ${isResizing === 'panel' ? 'active' : ''}`}
+                onMouseDown={() => startResizing('panel')}
+            />
 
             {/* ---- Right Panel ---- */}
             <div className="right-panel">
