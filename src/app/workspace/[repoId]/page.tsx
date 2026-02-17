@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useId, useMemo, useRef, type CSSProperties, type ReactNode } from 'react';
+import { memo, useState, useEffect, useCallback, useId, useMemo, useRef, type CSSProperties, type ReactNode } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import type { Repo, FileNode, Storyboard, StoryboardBlock, ChatMessage, Role } from '@/lib/types';
@@ -51,7 +51,7 @@ declare global {
     }
 }
 
-const SETI_THEME_URL = 'https://cdn.jsdelivr.net/gh/microsoft/vscode@main/extensions/theme-seti/icons/vs-seti-icon-theme.json';
+const SETI_THEME_URL = '/fonts/vs-seti-icon-theme.json';
 const MERMAID_CDN_URL = 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js';
 const FILE_CONTENT_CACHE_LIMIT = 80;
 const PREFETCH_BATCH_SIZE = 20;
@@ -96,11 +96,19 @@ export default function WorkspacePage() {
     const [setiTheme, setSetiTheme] = useState<SetiIconTheme | null>(null);
     const [pipelineMessage, setPipelineMessage] = useState<string | null>(null);
     const [pipelineBusy, setPipelineBusy] = useState(false);
+    const [sidebarWidth, setSidebarWidth] = useState(282);
+    const [panelWidth, setPanelWidth] = useState(376);
+    const [isResizing, setIsResizing] = useState<'sidebar' | 'panel' | null>(null);
     const fileContentCacheRef = useRef<Map<string, string>>(new Map());
     const inFlightFileRequestsRef = useRef<Map<string, Promise<string>>>(new Map());
     const prefetchedPathsRef = useRef<Set<string>>(new Set());
     const parseTriggeredRef = useRef(false);
     const storyboardTriggeredRef = useRef(false);
+    const openFilesRef = useRef<{ path: string; content: string }[]>([]);
+
+    useEffect(() => {
+        openFilesRef.current = openFiles;
+    }, [openFiles]);
 
     useEffect(() => {
         let isMounted = true;
@@ -118,6 +126,36 @@ export default function WorkspacePage() {
             isMounted = false;
         };
     }, []);
+
+    const startResizing = useCallback((type: 'sidebar' | 'panel') => {
+        setIsResizing(type);
+    }, []);
+
+    useEffect(() => {
+        if (!isResizing) return;
+
+        const handleMouseMove = (e: MouseEvent) => {
+            if (isResizing === 'sidebar') {
+                const newWidth = Math.max(200, Math.min(620, e.clientX - 48));
+                setSidebarWidth(newWidth);
+                return;
+            }
+
+            const newWidth = Math.max(260, Math.min(860, window.innerWidth - e.clientX));
+            setPanelWidth(newWidth);
+        };
+
+        const handleMouseUp = () => {
+            setIsResizing(null);
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isResizing]);
 
     // ---- Add keyboard shortcuts ----
     useEffect(() => {
@@ -153,6 +191,9 @@ export default function WorkspacePage() {
         setPipelineMessage(null);
         setStoryboard(null);
         setActiveBlock(null);
+        setOpenFiles([]);
+        setActiveFileIndex(-1);
+        setHighlightedLines(new Set());
         setCompletedBlocks(new Set());
     }, [repoId, initialStoryboardId]);
 
@@ -246,7 +287,7 @@ export default function WorkspacePage() {
 
     const refreshRepo = useCallback(async () => {
         const repoData = await api.repos.get(repoId);
-        setRepo(repoData);
+        setRepo((previous) => (hasMeaningfulRepoUpdate(previous, repoData) ? repoData : previous));
         if (repoData.storyboardId && repoData.storyboardId !== activeStoryboardId) {
             setActiveStoryboardId(repoData.storyboardId);
         }
@@ -449,9 +490,14 @@ export default function WorkspacePage() {
         void prefetchFiles(activeBlock.keyFiles.slice(0, PREFETCH_BLOCK_SAMPLE_SIZE));
     }, [activeBlock, prefetchFiles]);
 
+    const filteredFileTree = useMemo(
+        () => filterTreeByQuery(fileTree, treeFilter),
+        [fileTree, treeFilter],
+    );
+
     // ---- Open a file ----
     const openFile = useCallback(async (path: string) => {
-        const existing = openFiles.findIndex(f => f.path === path);
+        const existing = openFilesRef.current.findIndex(f => f.path === path);
         if (existing >= 0) {
             setActiveFileIndex(existing);
             return;
@@ -473,7 +519,7 @@ export default function WorkspacePage() {
             console.error('Failed to open file:', err);
             setErrors(prev => [...prev, `Could not open ${path}`]);
         }
-    }, [openFiles, fetchFileContent]);
+    }, [fetchFileContent]);
 
     // ---- Close a file tab ----
     const closeFile = useCallback((index: number) => {
@@ -633,9 +679,19 @@ export default function WorkspacePage() {
 
     const activeFile = activeFileIndex >= 0 ? openFiles[activeFileIndex] : null;
     const pipelineState = repo?.status === 'ERROR' ? 'error' : (pipelineBusy ? 'busy' : 'idle');
+    const computedSidebarWidth = sidebarCollapsed ? 0 : sidebarWidth;
+    const sidebarHandleWidth = sidebarCollapsed ? 0 : 4;
 
     return (
-        <div className="workspace">
+        <div
+            className={`workspace ${isResizing ? 'resizing' : ''}`}
+            style={{
+                '--sidebar-width': `${computedSidebarWidth}px`,
+                '--panel-width': `${panelWidth}px`,
+                '--sidebar-handle-width': `${sidebarHandleWidth}px`,
+                '--panel-handle-width': '4px',
+            } as CSSProperties}
+        >
             {/* ---- Top Bar ---- */}
             <div className="topbar">
                 <div className="topbar-left">
@@ -744,12 +800,11 @@ export default function WorkspacePage() {
                             />
                         </div>
                         <div className="sidebar-content">
-                            {fileTree ? (
+                            {filteredFileTree ? (
                                 <FileTreeNode
-                                    node={fileTree}
+                                    node={filteredFileTree}
                                     onFileClick={openFile}
                                     onFileHover={prefetchFile}
-                                    filter={treeFilter}
                                     activeFilePath={activeFile?.path}
                                     setiTheme={setiTheme}
                                 />
@@ -757,7 +812,9 @@ export default function WorkspacePage() {
                                 <div className="empty-state">
                                     <div className="empty-state-icon"><Codicon name="folder" /></div>
                                     <div className="empty-state-text">
-                                        {errors.length > 0 ? 'Could not load file tree' : 'No files found'}
+                                        {treeFilter
+                                            ? 'No files match your filter'
+                                            : (errors.length > 0 ? 'Could not load file tree' : 'No files found')}
                                     </div>
                                 </div>
                             )}
@@ -800,6 +857,11 @@ export default function WorkspacePage() {
                     </>
                 )}
             </div>
+
+            <div
+                className={`resize-handle ${isResizing === 'sidebar' ? 'active' : ''}`}
+                onMouseDown={() => startResizing('sidebar')}
+            />
 
             {/* ---- Editor Panel ---- */}
             <div className="editor-panel">
@@ -900,6 +962,11 @@ export default function WorkspacePage() {
                 </div>
             </div>
 
+            <div
+                className={`resize-handle ${isResizing === 'panel' ? 'active' : ''}`}
+                onMouseDown={() => startResizing('panel')}
+            />
+
             {/* ---- Right Panel ---- */}
             <div className="right-panel">
                 <div className="panel-content">
@@ -980,27 +1047,15 @@ export default function WorkspacePage() {
 // =============== Sub-Components ===============
 
 // ---- File Tree ----
-function FileTreeNode({ node, onFileClick, onFileHover, depth = 0, filter = '', activeFilePath, setiTheme }: {
+const FileTreeNode = memo(function FileTreeNode({ node, onFileClick, onFileHover, depth = 0, activeFilePath, setiTheme }: {
     node: FileNode;
     onFileClick: (path: string) => void;
     onFileHover?: (path: string) => void;
     depth?: number;
-    filter?: string;
     activeFilePath?: string;
     setiTheme?: SetiIconTheme | null;
 }) {
     const [expanded, setExpanded] = useState(depth < 2);
-
-    // Filter logic
-    const matchesFilter = (n: FileNode): boolean => {
-        if (!filter) return true;
-        const lf = filter.toLowerCase();
-        if (n.name.toLowerCase().includes(lf)) return true;
-        if (n.children) return n.children.some(c => matchesFilter(c));
-        return false;
-    };
-
-    if (!matchesFilter(node)) return null;
 
     if (node.type === 'file') {
         const isActive = node.path === activeFilePath;
@@ -1035,39 +1090,38 @@ function FileTreeNode({ node, onFileClick, onFileHover, depth = 0, filter = '', 
             </div>
             {expanded && node.children && (
                 <div className="file-tree-children">
-                    {[...node.children]
-                        .sort(sortTreeNodes)
-                        .filter(child => matchesFilter(child))
-                        .map((child, i) => (
-                            <FileTreeNode
-                                key={`${child.name}-${i}`}
-                                node={child}
-                                onFileClick={onFileClick}
-                                onFileHover={onFileHover}
-                                depth={depth + 1}
-                                filter={filter}
-                                activeFilePath={activeFilePath}
-                                setiTheme={setiTheme}
-                            />
-                        ))}
+                    {node.children.map((child, i) => (
+                        <FileTreeNode
+                            key={`${child.name}-${i}`}
+                            node={child}
+                            onFileClick={onFileClick}
+                            onFileHover={onFileHover}
+                            depth={depth + 1}
+                            activeFilePath={activeFilePath}
+                            setiTheme={setiTheme}
+                        />
+                    ))}
                 </div>
             )}
         </div>
     );
-}
+});
 
 // ---- Code Viewer with Syntax Highlighting ----
-function CodeViewer({ content, filePath, highlightedLines }: {
+const CodeViewer = memo(function CodeViewer({ content, filePath, highlightedLines }: {
     content: string;
     filePath: string;
     highlightedLines: Set<number>;
 }) {
-    const lines = content.split('\n');
-    const lang = getLanguageFromPath(filePath);
+    const lang = useMemo(() => getLanguageFromPath(filePath), [filePath]);
+    const highlightedHtmlLines = useMemo(
+        () => content.split('\n').map(line => highlightSyntax(line, lang)),
+        [content, lang],
+    );
 
     return (
         <div className="code-viewer">
-            {lines.map((line, i) => (
+            {highlightedHtmlLines.map((lineHtml, i) => (
                 <div
                     key={i}
                     className={`code-line ${highlightedLines.has(i + 1) ? 'highlighted' : ''}`}
@@ -1075,13 +1129,17 @@ function CodeViewer({ content, filePath, highlightedLines }: {
                     <span className="code-line-number">{i + 1}</span>
                     <span
                         className="code-line-content"
-                        dangerouslySetInnerHTML={{ __html: highlightSyntax(line, lang) }}
+                        dangerouslySetInnerHTML={{ __html: lineHtml }}
                     />
                 </div>
             ))}
         </div>
     );
-}
+}, (previous, next) => (
+    previous.content === next.content
+    && previous.filePath === next.filePath
+    && previous.highlightedLines === next.highlightedLines
+));
 
 function MermaidDiagram({ diagram, compact = false }: { diagram: string; compact?: boolean }) {
     const source = typeof diagram === 'string' ? diagram.trim() : '';
@@ -1697,11 +1755,41 @@ function getFileName(path: string): string {
     return path.split('/').pop() || path;
 }
 
-function sortTreeNodes(a: FileNode, b: FileNode): number {
-    if (a.type !== b.type) {
-        return a.type === 'directory' ? -1 : 1;
+function hasMeaningfulRepoUpdate(previous: Repo | null, next: Repo): boolean {
+    if (!previous) return true;
+
+    return previous.status !== next.status
+        || previous.storyboardId !== next.storyboardId
+        || previous.storyboardBlockCount !== next.storyboardBlockCount
+        || previous.storyboardErrorMessage !== next.storyboardErrorMessage
+        || previous.errorMessage !== next.errorMessage
+        || previous.fileCount !== next.fileCount
+        || previous.name !== next.name;
+}
+
+function filterTreeByQuery(root: FileNode | null, rawQuery: string): FileNode | null {
+    if (!root) return null;
+    const query = rawQuery.trim().toLowerCase();
+    if (!query) return root;
+    return filterTreeNode(root, query);
+}
+
+function filterTreeNode(node: FileNode, query: string): FileNode | null {
+    const nameMatches = node.name.toLowerCase().includes(query);
+    if (node.type === 'file') {
+        return nameMatches ? node : null;
     }
-    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+
+    const children = Array.isArray(node.children) ? node.children : [];
+    const filteredChildren = children
+        .map((child) => filterTreeNode(child, query))
+        .filter((child): child is FileNode => Boolean(child));
+
+    if (nameMatches || filteredChildren.length > 0) {
+        return { ...node, children: filteredChildren };
+    }
+
+    return null;
 }
 
 function normalizeRoleToken(value: string): string {

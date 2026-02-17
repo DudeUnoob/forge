@@ -17,6 +17,14 @@ import { success, error, parseBody } from '../shared/response.js';
 const REPOS_TABLE = process.env.REPOS_TABLE;
 const STORYBOARDS_TABLE = process.env.STORYBOARDS_TABLE;
 const MAX_PROMPT_CHARS = 150000; // Stay well within Claude Sonnet's context window
+const MAX_BLOCKS_TO_GENERATE = 10;
+const DETAIL_GENERATION_CONCURRENCY = clampNumber(process.env.STORYBOARD_DETAIL_CONCURRENCY, 3, 1, 6);
+const MAX_KEY_FILES_PER_BLOCK = 4;
+const MAX_FILE_SNIPPET_LINES = 120;
+const MAX_FILE_SNIPPET_CHARS = 12000;
+const MAX_BLOCK_FILE_CONTEXT_CHARS = 40000;
+const COMMIT_HISTORY_LIMIT = 12;
+const COMMIT_MESSAGE_MAX_CHARS = 180;
 
 /**
  * Compress a module graph to essential structure only, removing verbose content
@@ -101,17 +109,23 @@ export const handler = async (event) => {
         // Get repo metadata (file list & commit history)
         const metadata = await getJson(`repos/${repoId}/metadata.json`);
         const fileList = (metadata?.fileList || []).slice(0, 300); // Cap file list
-        const commitHistory = metadata?.commitHistory || [];
+        const commitHistory = (metadata?.commitHistory || []).slice(0, COMMIT_HISTORY_LIMIT);
 
         const commitHistoryText = commitHistory
-            .map(c => `${c.sha} — ${c.message} (${c.author}, ${c.date})`)
+            .map(c => {
+                const shortSha = typeof c.sha === 'string' ? c.sha.slice(0, 7) : 'unknown';
+                const message = truncateText(typeof c.message === 'string' ? c.message : '', COMMIT_MESSAGE_MAX_CHARS);
+                const author = typeof c.author === 'string' ? c.author : 'unknown';
+                const date = typeof c.date === 'string' ? c.date : 'unknown';
+                return `${shortSha} — ${message} (${author}, ${date})`;
+            })
             .join('\n');
 
         // ---- Step 1: Decompose codebase into blocks ----
         const storyboardId = uuid();
 
         const decompositionPrompt = PROMPTS.DECOMPOSE_SYSTEM;
-        const blockListRaw = await invokeModel(
+        const blockListRaw = await invokeModelWithRetry(
             decompositionPrompt.system,
             decompositionPrompt.user(compressedGraph, fileList, commitHistoryText),
             { maxTokens: 4096, temperature: 0.2 }
@@ -128,98 +142,82 @@ export const handler = async (event) => {
             return error('Failed to parse AI block decomposition', 500);
         }
 
+        const normalizedBlockList = normalizeBlockList(blockList).slice(0, MAX_BLOCKS_TO_GENERATE);
+        if (normalizedBlockList.length === 0) {
+            return error('No valid storyboard blocks were generated', 500);
+        }
+
         // ---- Step 2: Generate detailed content for each block ----
-        const blocks = [];
+        const detailPrompt = PROMPTS.GENERATE_BLOCK_DETAIL;
+        const blockLookup = new Map(normalizedBlockList.map(block => [block.blockId, block]));
+        const snippetCache = new Map();
 
-        for (let i = 0; i < blockList.length; i++) {
-            const blockSkeleton = (typeof blockList[i] === 'object' && blockList[i] !== null)
-                ? blockList[i]
-                : {};
-            blockSkeleton.blockId = blockSkeleton.blockId || `block-${i + 1}`;
-            blockSkeleton.title = blockSkeleton.title || `Block ${i + 1}`;
-            blockSkeleton.objective = blockSkeleton.objective || '';
+        const blocks = await mapWithConcurrency(
+            normalizedBlockList,
+            DETAIL_GENERATION_CONCURRENCY,
+            async (blockSkeleton, index) => {
+                const fileContents = await buildBlockFileContext(repoId, blockSkeleton.keyFiles, snippetCache);
+                const depContext = buildDependencyContext(blockSkeleton.prerequisites, blockLookup);
+                const detailRaw = await invokeModelWithRetry(
+                    detailPrompt.system,
+                    detailPrompt.user(blockSkeleton, fileContents, depContext),
+                    { maxTokens: 4096, temperature: 0.3 }
+                );
 
-            // Gather file contents for this block's key files (truncated)
-            const fileContentsArr = [];
-            for (const filePath of (blockSkeleton.keyFiles || []).slice(0, 5)) {
-                const content = await getText(`repos/${repoId}/files/${filePath}`);
-                if (content) {
-                    // Truncate to first 200 lines
-                    const truncated = content.split('\n').slice(0, 200).join('\n');
-                    fileContentsArr.push(`### ${filePath}\n\`\`\`\n${truncated}\n\`\`\``);
+                const parsedDetail = parseModelJson(detailRaw, 'object');
+                const blockDetail = parsedDetail && typeof parsedDetail === 'object' && !Array.isArray(parsedDetail)
+                    ? parsedDetail
+                    : {
+                        blockId: blockSkeleton.blockId,
+                        title: blockSkeleton.title,
+                        objective: blockSkeleton.objective,
+                        explanationMarkdown: detailRaw,
+                        dependencySummary: '',
+                        mermaidDiagram: '',
+                        keyTakeaways: [],
+                        suggestedQuestions: [],
+                    };
+
+                if (!blockDetail.explanationMarkdown) {
+                    blockDetail.explanationMarkdown = '';
                 }
-            }
-            const fileContents = fileContentsArr.join('\n\n');
 
-            // Dependency context from prerequisites
-            const depContext = (blockSkeleton.prerequisites || [])
-                .map(preId => {
-                    const pre = blockList.find(b => b.blockId === preId);
-                    return pre ? `- ${pre.blockId}: ${pre.title} — ${pre.objective}` : '';
-                })
-                .filter(Boolean)
-                .join('\n');
+                const diagramRefs = [];
+                if (blockDetail.mermaidDiagram) {
+                    const diagramKey = `repos/${repoId}/diagrams/${blockSkeleton.blockId}.mmd`;
+                    await uploadText(diagramKey, blockDetail.mermaidDiagram, 'text/plain');
+                    diagramRefs.push(diagramKey);
+                }
 
-            const detailPrompt = PROMPTS.GENERATE_BLOCK_DETAIL;
-            const detailRaw = await invokeModel(
-                detailPrompt.system,
-                detailPrompt.user(blockSkeleton, fileContents, depContext || 'This is a foundational block with no prerequisites.'),
-                { maxTokens: 4096, temperature: 0.3 }
-            );
-
-            const parsedDetail = parseModelJson(detailRaw, 'object');
-            const blockDetail = parsedDetail && typeof parsedDetail === 'object' && !Array.isArray(parsedDetail)
-                ? parsedDetail
-                : {
+                const block = {
+                    storyboardId,
                     blockId: blockSkeleton.blockId,
-                    title: blockSkeleton.title,
-                    objective: blockSkeleton.objective,
-                    explanationMarkdown: detailRaw,
-                    dependencySummary: '',
-                    mermaidDiagram: '',
-                    keyTakeaways: [],
-                    suggestedQuestions: [],
+                    repoId,
+                    title: blockDetail.title || blockSkeleton.title,
+                    roleTags: blockSkeleton.roleTags || ['fullstack'],
+                    objective: blockDetail.objective || blockSkeleton.objective,
+                    explanationMarkdown: blockDetail.explanationMarkdown || '',
+                    prerequisites: blockSkeleton.prerequisites || [],
+                    next: normalizedBlockList[index + 1] ? [normalizedBlockList[index + 1].blockId] : [],
+                    keyFiles: blockSkeleton.keyFiles || [],
+                    keySymbols: blockSkeleton.keySymbols || [],
+                    dependencySummary: blockDetail.dependencySummary || '',
+                    diagramRefs,
+                    mermaidDiagram: blockDetail.mermaidDiagram || '',
+                    resources: blockDetail.resources || [],
+                    keyTakeaways: blockDetail.keyTakeaways || [],
+                    suggestedQuestions: blockDetail.suggestedQuestions || [],
+                    order: index,
+                    estimatedMinutes: blockSkeleton.estimatedMinutes || 10,
+                    generatedAt: new Date().toISOString(),
                 };
 
-            if (!blockDetail.explanationMarkdown) {
-                blockDetail.explanationMarkdown = '';
-            }
+                await putItem(STORYBOARDS_TABLE, block);
+                return block;
+            },
+        );
 
-            // Store Mermaid diagram in S3 if present
-            const diagramRefs = [];
-            if (blockDetail.mermaidDiagram) {
-                const diagramKey = `repos/${repoId}/diagrams/${blockSkeleton.blockId}.mmd`;
-                await uploadText(diagramKey, blockDetail.mermaidDiagram, 'text/plain');
-                diagramRefs.push(diagramKey);
-            }
-
-            const block = {
-                storyboardId,
-                blockId: blockSkeleton.blockId,
-                repoId,
-                title: blockDetail.title || blockSkeleton.title,
-                roleTags: blockSkeleton.roleTags || ['fullstack'],
-                objective: blockDetail.objective || blockSkeleton.objective,
-                explanationMarkdown: blockDetail.explanationMarkdown || '',
-                prerequisites: blockSkeleton.prerequisites || [],
-                next: blockList[i + 1] ? [blockList[i + 1].blockId] : [],
-                keyFiles: blockSkeleton.keyFiles || [],
-                keySymbols: blockSkeleton.keySymbols || [],
-                dependencySummary: blockDetail.dependencySummary || '',
-                diagramRefs,
-                mermaidDiagram: blockDetail.mermaidDiagram || '',
-                resources: blockDetail.resources || [],
-                keyTakeaways: blockDetail.keyTakeaways || [],
-                suggestedQuestions: blockDetail.suggestedQuestions || [],
-                order: i,
-                estimatedMinutes: blockSkeleton.estimatedMinutes || 10,
-                generatedAt: new Date().toISOString(),
-            };
-
-            // Store in DynamoDB
-            await putItem(STORYBOARDS_TABLE, block);
-            blocks.push(block);
-        }
+        blocks.sort((a, b) => a.order - b.order);
 
         // Store full storyboard metadata
         await uploadJson(`repos/${repoId}/storyboards/${storyboardId}.json`, {
@@ -270,6 +268,214 @@ export const handler = async (event) => {
         return error(`Storyboard generation failed: ${err.message}`, 500);
     }
 };
+
+function normalizeBlockList(rawBlocks) {
+    const usedIds = new Set();
+
+    return rawBlocks.map((rawBlock, index) => {
+        const source = (typeof rawBlock === 'object' && rawBlock !== null) ? rawBlock : {};
+        const fallbackId = `block-${index + 1}`;
+        const proposedId = truncateText(String(source.blockId || fallbackId).trim(), 64) || fallbackId;
+        const blockId = ensureUniqueBlockId(proposedId, usedIds, fallbackId);
+
+        const title = truncateText(
+            typeof source.title === 'string' && source.title.trim()
+                ? source.title.trim()
+                : `Block ${index + 1}`,
+            120,
+        );
+        const objective = truncateText(
+            typeof source.objective === 'string' ? source.objective.trim() : '',
+            320,
+        );
+
+        return {
+            ...source,
+            blockId,
+            title: title || `Block ${index + 1}`,
+            objective,
+            roleTags: normalizeRoleTags(source.roleTags),
+            keyFiles: normalizePathList(source.keyFiles),
+            keySymbols: normalizeStringList(source.keySymbols, 60),
+            prerequisites: normalizeStringList(source.prerequisites, 32),
+            estimatedMinutes: normalizeEstimatedMinutes(source.estimatedMinutes),
+        };
+    });
+}
+
+function ensureUniqueBlockId(candidate, usedIds, fallbackId) {
+    let normalized = candidate || fallbackId;
+    let suffix = 1;
+
+    while (usedIds.has(normalized)) {
+        normalized = `${candidate || fallbackId}-${suffix}`;
+        suffix += 1;
+    }
+
+    usedIds.add(normalized);
+    return normalized;
+}
+
+function normalizeRoleTags(rawRoleTags) {
+    const tags = normalizeStringList(rawRoleTags, 24);
+    return tags.length > 0 ? tags : ['fullstack'];
+}
+
+function normalizePathList(rawPaths) {
+    return normalizeStringList(rawPaths, 260)
+        .map(path => path.replace(/^\/+/, '').replace(/\\/g, '/'))
+        .filter(Boolean);
+}
+
+function normalizeStringList(rawValues, maxValueLength) {
+    if (!Array.isArray(rawValues)) return [];
+
+    const seen = new Set();
+    const results = [];
+    for (const rawValue of rawValues) {
+        if (typeof rawValue !== 'string') continue;
+        const value = truncateText(rawValue.trim(), maxValueLength);
+        if (!value || seen.has(value)) continue;
+        seen.add(value);
+        results.push(value);
+    }
+
+    return results;
+}
+
+function normalizeEstimatedMinutes(rawValue) {
+    const parsed = Number.parseInt(String(rawValue), 10);
+    if (Number.isNaN(parsed)) return 10;
+    return Math.min(60, Math.max(3, parsed));
+}
+
+function buildDependencyContext(prerequisites, blockLookup) {
+    const lines = (Array.isArray(prerequisites) ? prerequisites : [])
+        .map((preId) => {
+            const pre = blockLookup.get(preId);
+            return pre ? `- ${pre.blockId}: ${pre.title} — ${pre.objective}` : '';
+        })
+        .filter(Boolean);
+
+    return lines.length > 0
+        ? lines.join('\n')
+        : 'This is a foundational block with no prerequisites.';
+}
+
+async function buildBlockFileContext(repoId, keyFiles, snippetCache) {
+    const selectedFiles = Array.isArray(keyFiles)
+        ? keyFiles.slice(0, MAX_KEY_FILES_PER_BLOCK)
+        : [];
+
+    if (selectedFiles.length === 0) return '';
+
+    const snippets = await Promise.all(
+        selectedFiles.map(filePath => getCachedFileSnippet(repoId, filePath, snippetCache)),
+    );
+
+    return snippets
+        .filter(Boolean)
+        .join('\n\n')
+        .slice(0, MAX_BLOCK_FILE_CONTEXT_CHARS);
+}
+
+async function getCachedFileSnippet(repoId, filePath, snippetCache) {
+    const cacheKey = `${repoId}:${filePath}`;
+    const cached = snippetCache.get(cacheKey);
+    if (cached) {
+        return await cached;
+    }
+
+    const loadPromise = (async () => {
+        const content = await getText(`repos/${repoId}/files/${filePath}`);
+        if (!content) {
+            return '';
+        }
+
+        const truncated = truncateFileForPrompt(content);
+        return `### ${filePath}\n\`\`\`\n${truncated}\n\`\`\``;
+    })();
+
+    snippetCache.set(cacheKey, loadPromise);
+
+    try {
+        const snippet = await loadPromise;
+        snippetCache.set(cacheKey, Promise.resolve(snippet));
+        return snippet;
+    } catch (err) {
+        snippetCache.delete(cacheKey);
+        throw err;
+    }
+}
+
+function truncateFileForPrompt(content) {
+    if (typeof content !== 'string' || content.length === 0) return '';
+
+    const lines = content.split('\n').slice(0, MAX_FILE_SNIPPET_LINES);
+    const joined = lines.join('\n');
+    if (joined.length <= MAX_FILE_SNIPPET_CHARS) return joined;
+    return `${joined.slice(0, MAX_FILE_SNIPPET_CHARS)}\n...`;
+}
+
+function truncateText(value, maxChars) {
+    if (typeof value !== 'string') return '';
+    if (value.length <= maxChars) return value;
+    return `${value.slice(0, Math.max(0, maxChars - 3))}...`;
+}
+
+function clampNumber(rawValue, fallback, min, max) {
+    const parsed = Number.parseInt(String(rawValue ?? ''), 10);
+    if (Number.isNaN(parsed)) return fallback;
+    return Math.min(max, Math.max(min, parsed));
+}
+
+async function mapWithConcurrency(items, concurrency, mapper) {
+    if (!Array.isArray(items) || items.length === 0) return [];
+
+    const workerCount = Math.max(1, Math.min(concurrency, items.length));
+    const results = new Array(items.length);
+    let nextIndex = 0;
+
+    const worker = async () => {
+        while (nextIndex < items.length) {
+            const currentIndex = nextIndex;
+            nextIndex += 1;
+            results[currentIndex] = await mapper(items[currentIndex], currentIndex);
+        }
+    };
+
+    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+    return results;
+}
+
+async function invokeModelWithRetry(systemPrompt, userPrompt, options, maxAttempts = 3) {
+    let attempt = 0;
+
+    while (attempt < maxAttempts) {
+        try {
+            return await invokeModel(systemPrompt, userPrompt, options);
+        } catch (err) {
+            const shouldRetry = isRetryableBedrockError(err) && attempt < maxAttempts - 1;
+            if (!shouldRetry) throw err;
+
+            const backoffMs = 500 * (2 ** attempt) + Math.floor(Math.random() * 250);
+            await new Promise(resolve => setTimeout(resolve, backoffMs));
+            attempt += 1;
+        }
+    }
+
+    throw new Error('Model invocation failed after retries');
+}
+
+function isRetryableBedrockError(err) {
+    const message = typeof err?.message === 'string' ? err.message.toLowerCase() : '';
+    const name = typeof err?.name === 'string' ? err.name.toLowerCase() : '';
+    return name.includes('throttl')
+        || name.includes('timeout')
+        || message.includes('throttl')
+        || message.includes('rate exceed')
+        || message.includes('timeout');
+}
 
 function parseModelJson(rawText, expectedType) {
     if (typeof rawText !== 'string') return null;
