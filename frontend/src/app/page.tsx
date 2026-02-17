@@ -8,6 +8,8 @@ import './workspace.css';
 
 const STORYBOARD_POLL_INTERVAL_MS = 3000;
 const STORYBOARD_POLL_TIMEOUT_MS = 6 * 60 * 1000;
+const PARSE_POLL_INTERVAL_MS = 3000;
+const PARSE_POLL_TIMEOUT_MS = 6 * 60 * 1000;
 
 export default function LandingPage() {
   const router = useRouter();
@@ -56,6 +58,41 @@ export default function LandingPage() {
     throw new Error('Storyboard generation is taking longer than expected. Please retry in a moment.');
   };
 
+  const waitForParse = async (repoId: string): Promise<void> => {
+    const startedAt = Date.now();
+
+    while (Date.now() - startedAt < PARSE_POLL_TIMEOUT_MS) {
+      await new Promise((resolve) => setTimeout(resolve, PARSE_POLL_INTERVAL_MS));
+
+      let repo: Repo;
+      try {
+        repo = await api.repos.get(repoId);
+      } catch {
+        continue;
+      }
+
+      if (repo.status === 'PARSED') {
+        return;
+      }
+
+      if (repo.status === 'ERROR') {
+        throw new Error(repo.errorMessage || 'Repository parsing failed');
+      }
+
+      if (repo.status === 'PARSING') {
+        setStatus('Parsing repository modules...');
+      } else {
+        setStatus('Waiting for parse to finish...');
+      }
+
+      const elapsed = Date.now() - startedAt;
+      const ratio = Math.min(1, elapsed / PARSE_POLL_TIMEOUT_MS);
+      setProgress(40 + Math.round(ratio * 20));
+    }
+
+    throw new Error('Repository parsing is taking longer than expected. Please retry in a moment.');
+  };
+
   const handleIngest = async () => {
     if (!gitUrl.trim()) return;
 
@@ -83,7 +120,13 @@ export default function LandingPage() {
       if (ingestResult.status !== 'PARSED') {
         setStatus('Repository cloned. Parsing modules...');
         setProgress(35);
-        await api.repos.parse(repoId);
+        const parseResult = await api.repos.parse(repoId);
+
+        if (parseResult.status !== 'PARSED') {
+          setStatus('Parse request accepted. Waiting for parse to finish...');
+          setProgress(40);
+          await waitForParse(repoId);
+        }
       }
 
       // Step 3: Generate storyboard (skip if one already exists on cached repo)

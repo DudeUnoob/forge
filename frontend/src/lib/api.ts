@@ -59,7 +59,18 @@ export const api = {
             request<import('./types').Repo>(`/repos/${repoId}`),
 
         parse: (repoId: string) =>
-            request<{ repoId: string; status: string }>(`/repos/${repoId}/parse`, {
+            request<{
+                repoId: string;
+                status: string;
+                inProgress?: boolean;
+                queued?: boolean;
+                cached?: boolean;
+                totalFiles?: number;
+                parsedFiles?: number;
+                totalModules?: number;
+                totalEdges?: number;
+                totalGroups?: number;
+            }>(`/repos/${repoId}/parse`, {
                 method: 'POST',
             }),
 

@@ -153,6 +153,15 @@ while the Lambda continues in async mode. Poll `GET /repos/{id}` until:
 
 This avoids API Gateway timeout issues for long storyboard jobs.
 
+## 12) Parse is asynchronous
+
+`POST /repos/{id}/parse` now queues background parsing and returns `202` while
+the Lambda continues in async mode. Poll `GET /repos/{id}` until:
+- `status` is `PARSED` (ready)
+- or `status` is `ERROR` with `errorMessage` (failed)
+
+If parse is already in progress, the endpoint returns `202` with `inProgress`.
+
 ## Common failures and fixes
 
 1. `sam: command not found`
@@ -187,3 +196,7 @@ This avoids API Gateway timeout issues for long storyboard jobs.
 8. `on-demand throughput isn’t supported` for Nova 2 Lite
 - `BEDROCK_MODEL_ID` is using a foundation model ID.
 - Use an inference profile ID/ARN, e.g. `us.amazon.nova-2-lite-v1:0`.
+
+9. Parse endpoint returns `202` instead of immediate module counts
+- This is expected with async parsing.
+- Poll `GET /repos/{id}` until `status` becomes `PARSED` or `ERROR`.
