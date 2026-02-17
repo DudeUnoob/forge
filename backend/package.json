@@ -12,17 +12,18 @@
         "local": "sam local start-api --port 3001 --env-vars env.local.json"
     },
     "dependencies": {
-        "@aws-sdk/client-dynamodb": "^3.500.0",
-        "@aws-sdk/lib-dynamodb": "^3.500.0",
-        "@aws-sdk/client-s3": "^3.500.0",
         "@aws-sdk/client-bedrock-runtime": "^3.500.0",
+        "@aws-sdk/client-dynamodb": "^3.500.0",
+        "@aws-sdk/client-lambda": "^3.991.0",
+        "@aws-sdk/client-s3": "^3.500.0",
+        "@aws-sdk/lib-dynamodb": "^3.500.0",
         "isomorphic-git": "^1.25.0",
-        "web-tree-sitter": "^0.22.0",
-        "uuid": "^9.0.0"
+        "uuid": "^9.0.0",
+        "web-tree-sitter": "^0.22.0"
     },
     "devDependencies": {
-        "jest": "^29.7.0",
         "@types/jest": "^29.5.0",
-        "eslint": "^8.50.0"
+        "eslint": "^8.50.0",
+        "jest": "^29.7.0"
     }
 }

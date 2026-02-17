@@ -37,15 +37,19 @@ aws sts get-caller-identity
 
 ## 3) Enable Bedrock model access
 
-This backend calls Bedrock model:
-- `amazon.nova-2-lite-v1:0`
+This backend calls Bedrock inference profile:
+- `us.amazon.nova-2-lite-v1:0`
+
+For Nova 2 Lite, set `BEDROCK_MODEL_ID` to an inference profile ID/ARN (not
+the raw foundation model ID).
 
 In AWS Console:
 1. Open Amazon Bedrock.
 2. Go to Model access.
 3. Request/enable access for the configured model in your target region.
 
-If you use a different model, update `BEDROCK_MODEL_ID` in `template.yaml`.
+If you use a different model/profile, update `BEDROCK_MODEL_ID` in
+`template.yaml` and `env.local.json`.
 
 ## 4) Install backend dependencies
 
@@ -140,6 +144,15 @@ aws lambda get-function-configuration \
   --output text
 ```
 
+## 11) Storyboard generation is asynchronous
+
+`POST /repos/{id}/storyboard` now queues background generation and returns `202`
+while the Lambda continues in async mode. Poll `GET /repos/{id}` until:
+- `storyboardId` is populated (ready)
+- or `storyboardErrorMessage` is set (failed)
+
+This avoids API Gateway timeout issues for long storyboard jobs.
+
 ## Common failures and fixes
 
 1. `sam: command not found`
@@ -170,3 +183,7 @@ aws lambda get-function-configuration \
 7. Local output differs from deployed output
 - Compare `backend/env.local.json` `BEDROCK_MODEL_ID` with deployed Lambda
   environment variables.
+
+8. `on-demand throughput isn’t supported` for Nova 2 Lite
+- `BEDROCK_MODEL_ID` is using a foundation model ID.
+- Use an inference profile ID/ARN, e.g. `us.amazon.nova-2-lite-v1:0`.

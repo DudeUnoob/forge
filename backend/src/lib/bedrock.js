@@ -4,7 +4,29 @@ import {
 } from '@aws-sdk/client-bedrock-runtime';
 
 const client = new BedrockRuntimeClient({});
-const MODEL_ID = process.env.BEDROCK_MODEL_ID || 'amazon.nova-2-lite-v1:0';
+const NOVA_2_LITE_MODEL_ID = 'amazon.nova-2-lite-v1:0';
+const NOVA_2_LITE_PROFILE_ID = 'us.amazon.nova-2-lite-v1:0';
+const DEFAULT_BEDROCK_TARGET = NOVA_2_LITE_PROFILE_ID;
+let hasWarnedLegacyNovaModelId = false;
+const MODEL_ID = normalizeBedrockTarget(process.env.BEDROCK_MODEL_ID || DEFAULT_BEDROCK_TARGET);
+
+function normalizeBedrockTarget(rawTarget) {
+    const target = typeof rawTarget === 'string' ? rawTarget.trim() : '';
+    if (!target) return DEFAULT_BEDROCK_TARGET;
+
+    if (target === NOVA_2_LITE_MODEL_ID) {
+        if (!hasWarnedLegacyNovaModelId) {
+            hasWarnedLegacyNovaModelId = true;
+            console.warn(
+                `BEDROCK_MODEL_ID="${NOVA_2_LITE_MODEL_ID}" is a foundation model ID. ` +
+                `Using inference profile "${NOVA_2_LITE_PROFILE_ID}" instead.`,
+            );
+        }
+        return NOVA_2_LITE_PROFILE_ID;
+    }
+
+    return target;
+}
 
 function toConverseMessage(message) {
     const role = message?.role === 'assistant' ? 'assistant' : 'user';
@@ -28,6 +50,28 @@ function extractResponseText(response) {
         .trim();
 }
 
+function addInferenceProfileGuidance(err) {
+    const message = typeof err?.message === 'string' ? err.message : '';
+    if (!message.toLowerCase().includes('on-demand throughput')) {
+        return err;
+    }
+
+    const improvedError = new Error(
+        `${message} Use inference profile ID/ARN (e.g., "${NOVA_2_LITE_PROFILE_ID}") instead of foundation model ID "${NOVA_2_LITE_MODEL_ID}".`,
+        { cause: err },
+    );
+    improvedError.name = err?.name || 'BedrockInvocationError';
+    return improvedError;
+}
+
+async function sendConverse(params) {
+    try {
+        return await client.send(new ConverseCommand(params));
+    } catch (err) {
+        throw addInferenceProfileGuidance(err);
+    }
+}
+
 /**
  * Invoke a Bedrock model with a system prompt and one user message.
  * @param {string} systemPrompt - System-level instructions
@@ -38,7 +82,7 @@ function extractResponseText(response) {
 export async function invokeModel(systemPrompt, userMessage, options = {}) {
     const { maxTokens = 4096, temperature = 0.3 } = options;
 
-    const result = await client.send(new ConverseCommand({
+    const result = await sendConverse({
         modelId: MODEL_ID,
         system: [{ text: systemPrompt }],
         messages: [{ role: 'user', content: [{ text: userMessage }] }],
@@ -46,7 +90,7 @@ export async function invokeModel(systemPrompt, userMessage, options = {}) {
             maxTokens,
             temperature,
         },
-    }));
+    });
 
     return extractResponseText(result);
 }
@@ -61,7 +105,7 @@ export async function invokeModel(systemPrompt, userMessage, options = {}) {
 export async function invokeChat(systemPrompt, messages, options = {}) {
     const { maxTokens = 4096, temperature = 0.3 } = options;
 
-    const result = await client.send(new ConverseCommand({
+    const result = await sendConverse({
         modelId: MODEL_ID,
         system: [{ text: systemPrompt }],
         messages: (messages || []).map(toConverseMessage),
@@ -69,7 +113,7 @@ export async function invokeChat(systemPrompt, messages, options = {}) {
             maxTokens,
             temperature,
         },
-    }));
+    });
 
     return extractResponseText(result);
 }

@@ -3,7 +3,11 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import type { Repo } from '@/lib/types';
 import './workspace.css';
+
+const STORYBOARD_POLL_INTERVAL_MS = 3000;
+const STORYBOARD_POLL_TIMEOUT_MS = 6 * 60 * 1000;
 
 export default function LandingPage() {
   const router = useRouter();
@@ -12,6 +16,45 @@ export default function LandingPage() {
   const [progress, setProgress] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const waitForStoryboard = async (repoId: string): Promise<string> => {
+    const startedAt = Date.now();
+
+    while (Date.now() - startedAt < STORYBOARD_POLL_TIMEOUT_MS) {
+      await new Promise((resolve) => setTimeout(resolve, STORYBOARD_POLL_INTERVAL_MS));
+
+      let repo: Repo;
+      try {
+        repo = await api.repos.get(repoId);
+      } catch {
+        continue;
+      }
+
+      if (repo.storyboardId) {
+        return repo.storyboardId;
+      }
+
+      if (repo.storyboardErrorMessage) {
+        throw new Error(`Storyboard generation failed: ${repo.storyboardErrorMessage}`);
+      }
+
+      if (repo.status === 'ERROR') {
+        throw new Error(repo.errorMessage || 'Storyboard generation failed');
+      }
+
+      if (repo.status === 'GENERATING_STORYBOARD') {
+        setStatus('Generating storyboard blocks...');
+      } else {
+        setStatus('Finalizing storyboard...');
+      }
+
+      const elapsed = Date.now() - startedAt;
+      const ratio = Math.min(1, elapsed / STORYBOARD_POLL_TIMEOUT_MS);
+      setProgress(70 + Math.round(ratio * 25));
+    }
+
+    throw new Error('Storyboard generation is taking longer than expected. Please retry in a moment.');
+  };
 
   const handleIngest = async () => {
     if (!gitUrl.trim()) return;
@@ -48,7 +91,13 @@ export default function LandingPage() {
         setStatus('Modules parsed. Generating storyboard...');
         setProgress(65);
         const generated = await api.storyboard.generate(repoId);
-        storyboardId = generated.storyboardId;
+        storyboardId = generated.storyboardId || null;
+
+        if (!storyboardId) {
+          setStatus('Storyboard request accepted. Waiting for generation to finish...');
+          setProgress(70);
+          storyboardId = await waitForStoryboard(repoId);
+        }
       }
 
       setStatus('Storyboard ready! Launching workspace...');

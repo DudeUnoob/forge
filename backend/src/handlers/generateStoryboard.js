@@ -8,6 +8,7 @@
  * 4. Store storyboard in DynamoDB + diagrams in S3
  */
 import { v4 as uuid } from 'uuid';
+import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 import { getItem, updateItem, putItem } from '../lib/dynamo.js';
 import { getJson, getText, uploadJson, uploadText } from '../lib/s3.js';
 import { invokeModel } from '../lib/bedrock.js';
@@ -25,6 +26,9 @@ const MAX_FILE_SNIPPET_CHARS = 12000;
 const MAX_BLOCK_FILE_CONTEXT_CHARS = 40000;
 const COMMIT_HISTORY_LIMIT = 12;
 const COMMIT_MESSAGE_MAX_CHARS = 180;
+const STORYBOARD_ASYNC_EVENT_SOURCE = 'forge.storyboard.generate';
+
+const lambdaClient = new LambdaClient({});
 
 /**
  * Compress a module graph to essential structure only, removing verbose content
@@ -63,14 +67,25 @@ function compressModuleGraph(moduleGraph) {
 }
 
 export const handler = async (event) => {
+    if (isAsyncStoryboardInvocation(event)) {
+        return await handleAsyncStoryboardInvocation(event);
+    }
+
+    return await handleStoryboardHttpRequest(event);
+};
+
+function isAsyncStoryboardInvocation(event) {
+    return event?.source === STORYBOARD_ASYNC_EVENT_SOURCE;
+}
+
+async function handleStoryboardHttpRequest(event) {
     try {
         const repoId = event.pathParameters?.id;
         if (!repoId) return error('Missing repo id', 400);
 
         const body = parseBody(event);
-        const role = body.role || 'fullstack';
+        const role = typeof body.role === 'string' && body.role.trim() ? body.role.trim() : 'fullstack';
 
-        // Get repo metadata
         const repo = await getItem(REPOS_TABLE, { repoId });
         if (!repo) return error('Repo not found', 404);
 
@@ -89,6 +104,7 @@ export const handler = async (event) => {
                 status: 'GENERATING_STORYBOARD',
                 inProgress: true,
                 storyboardId: repo.storyboardId || null,
+                storyboardErrorMessage: repo.storyboardErrorMessage || null,
             }, 202);
         }
 
@@ -97,177 +113,245 @@ export const handler = async (event) => {
         await updateItem(REPOS_TABLE, { repoId }, {
             status: 'GENERATING_STORYBOARD',
             storyboardErrorMessage: null,
+            storyboardRequestedAt: new Date().toISOString(),
         });
-
-        // Get module graph
-        const moduleGraph = await getJson(`repos/${repoId}/parsed/module-graph.json`);
-        if (!moduleGraph) return error('Module graph not found — parse the repo first', 400);
-
-        // Compress the module graph to fit within model context
-        const compressedGraph = compressModuleGraph(moduleGraph);
-
-        // Get repo metadata (file list & commit history)
-        const metadata = await getJson(`repos/${repoId}/metadata.json`);
-        const fileList = (metadata?.fileList || []).slice(0, 300); // Cap file list
-        const commitHistory = (metadata?.commitHistory || []).slice(0, COMMIT_HISTORY_LIMIT);
-
-        const commitHistoryText = commitHistory
-            .map(c => {
-                const shortSha = typeof c.sha === 'string' ? c.sha.slice(0, 7) : 'unknown';
-                const message = truncateText(typeof c.message === 'string' ? c.message : '', COMMIT_MESSAGE_MAX_CHARS);
-                const author = typeof c.author === 'string' ? c.author : 'unknown';
-                const date = typeof c.date === 'string' ? c.date : 'unknown';
-                return `${shortSha} — ${message} (${author}, ${date})`;
-            })
-            .join('\n');
-
-        // ---- Step 1: Decompose codebase into blocks ----
-        const storyboardId = uuid();
-
-        const decompositionPrompt = PROMPTS.DECOMPOSE_SYSTEM;
-        const blockListRaw = await invokeModelWithRetry(
-            decompositionPrompt.system,
-            decompositionPrompt.user(compressedGraph, fileList, commitHistoryText),
-            { maxTokens: 4096, temperature: 0.2 }
-        );
-
-        let blockList = parseModelJson(blockListRaw, 'array');
-        if (!blockList) {
-            const blockObj = parseModelJson(blockListRaw, 'object');
-            if (blockObj && Array.isArray(blockObj.blocks)) {
-                blockList = blockObj.blocks;
-            }
-        }
-        if (!Array.isArray(blockList) || blockList.length === 0) {
-            return error('Failed to parse AI block decomposition', 500);
-        }
-
-        const normalizedBlockList = normalizeBlockList(blockList).slice(0, MAX_BLOCKS_TO_GENERATE);
-        if (normalizedBlockList.length === 0) {
-            return error('No valid storyboard blocks were generated', 500);
-        }
-
-        // ---- Step 2: Generate detailed content for each block ----
-        const detailPrompt = PROMPTS.GENERATE_BLOCK_DETAIL;
-        const blockLookup = new Map(normalizedBlockList.map(block => [block.blockId, block]));
-        const snippetCache = new Map();
-
-        const blocks = await mapWithConcurrency(
-            normalizedBlockList,
-            DETAIL_GENERATION_CONCURRENCY,
-            async (blockSkeleton, index) => {
-                const fileContents = await buildBlockFileContext(repoId, blockSkeleton.keyFiles, snippetCache);
-                const depContext = buildDependencyContext(blockSkeleton.prerequisites, blockLookup);
-                const detailRaw = await invokeModelWithRetry(
-                    detailPrompt.system,
-                    detailPrompt.user(blockSkeleton, fileContents, depContext),
-                    { maxTokens: 4096, temperature: 0.3 }
-                );
-
-                const parsedDetail = parseModelJson(detailRaw, 'object');
-                const blockDetail = parsedDetail && typeof parsedDetail === 'object' && !Array.isArray(parsedDetail)
-                    ? parsedDetail
-                    : {
-                        blockId: blockSkeleton.blockId,
-                        title: blockSkeleton.title,
-                        objective: blockSkeleton.objective,
-                        explanationMarkdown: detailRaw,
-                        dependencySummary: '',
-                        mermaidDiagram: '',
-                        keyTakeaways: [],
-                        suggestedQuestions: [],
-                    };
-
-                if (!blockDetail.explanationMarkdown) {
-                    blockDetail.explanationMarkdown = '';
-                }
-
-                const diagramRefs = [];
-                if (blockDetail.mermaidDiagram) {
-                    const diagramKey = `repos/${repoId}/diagrams/${blockSkeleton.blockId}.mmd`;
-                    await uploadText(diagramKey, blockDetail.mermaidDiagram, 'text/plain');
-                    diagramRefs.push(diagramKey);
-                }
-
-                const block = {
-                    storyboardId,
-                    blockId: blockSkeleton.blockId,
-                    repoId,
-                    title: blockDetail.title || blockSkeleton.title,
-                    roleTags: blockSkeleton.roleTags || ['fullstack'],
-                    objective: blockDetail.objective || blockSkeleton.objective,
-                    explanationMarkdown: blockDetail.explanationMarkdown || '',
-                    prerequisites: blockSkeleton.prerequisites || [],
-                    next: normalizedBlockList[index + 1] ? [normalizedBlockList[index + 1].blockId] : [],
-                    keyFiles: blockSkeleton.keyFiles || [],
-                    keySymbols: blockSkeleton.keySymbols || [],
-                    dependencySummary: blockDetail.dependencySummary || '',
-                    diagramRefs,
-                    mermaidDiagram: blockDetail.mermaidDiagram || '',
-                    resources: blockDetail.resources || [],
-                    keyTakeaways: blockDetail.keyTakeaways || [],
-                    suggestedQuestions: blockDetail.suggestedQuestions || [],
-                    order: index,
-                    estimatedMinutes: blockSkeleton.estimatedMinutes || 10,
-                    generatedAt: new Date().toISOString(),
-                };
-
-                await putItem(STORYBOARDS_TABLE, block);
-                return block;
-            },
-        );
-
-        blocks.sort((a, b) => a.order - b.order);
-
-        // Store full storyboard metadata
-        await uploadJson(`repos/${repoId}/storyboards/${storyboardId}.json`, {
-            storyboardId,
-            repoId,
-            role,
-            blockCount: blocks.length,
-            generatedAt: new Date().toISOString(),
-        });
-
-        // Update repo with storyboard reference
-        await updateItem(REPOS_TABLE, { repoId }, {
-            status: 'PARSED',
-            storyboardId,
-            storyboardBlockCount: blocks.length,
-            storyboardGeneratedAt: new Date().toISOString(),
-            storyboardErrorMessage: null,
-        });
-
-        return success({
-            storyboardId,
-            repoId,
-            blockCount: blocks.length,
-            blocks: blocks.map(b => ({
-                blockId: b.blockId,
-                title: b.title,
-                objective: b.objective,
-                order: b.order,
-                roleTags: b.roleTags,
-            })),
-        }, 201);
-
-    } catch (err) {
-        console.error('GenerateStoryboard error:', err);
 
         try {
-            const repoId = event.pathParameters?.id;
-            if (repoId) {
-                await updateItem(REPOS_TABLE, { repoId }, {
-                    status: 'PARSED',
-                    storyboardErrorMessage: err.message,
-                });
-            }
-        } catch {
-            // Swallow status update errors to preserve original failure.
+            await enqueueStoryboardGeneration(repoId, role);
+        } catch (err) {
+            await markStoryboardFailure(repoId, err);
+            throw err;
         }
 
+        return success({
+            repoId,
+            status: 'GENERATING_STORYBOARD',
+            inProgress: true,
+            queued: true,
+            storyboardId: null,
+        }, 202);
+    } catch (err) {
+        console.error('GenerateStoryboard enqueue error:', err);
         return error(`Storyboard generation failed: ${err.message}`, 500);
     }
-};
+}
+
+async function handleAsyncStoryboardInvocation(event) {
+    const repoId = typeof event?.repoId === 'string' ? event.repoId : '';
+    if (!repoId) {
+        console.error('GenerateStoryboard async invocation missing repoId');
+        return { ok: false, reason: 'missing_repo_id' };
+    }
+
+    const role = typeof event?.role === 'string' && event.role.trim() ? event.role.trim() : 'fullstack';
+
+    try {
+        const repo = await getItem(REPOS_TABLE, { repoId });
+        if (!repo) {
+            throw new Error(`Repo not found for async generation: ${repoId}`);
+        }
+
+        if (repo.storyboardId) {
+            return { ok: true, repoId, storyboardId: repo.storyboardId, cached: true };
+        }
+
+        if (repo.status !== 'GENERATING_STORYBOARD') {
+            await updateItem(REPOS_TABLE, { repoId }, {
+                status: 'GENERATING_STORYBOARD',
+                storyboardErrorMessage: null,
+            });
+        }
+
+        const generated = await generateStoryboardForRepo(repoId, role);
+        return { ok: true, ...generated };
+    } catch (err) {
+        console.error('GenerateStoryboard async worker error:', err);
+        await markStoryboardFailure(repoId, err);
+        return { ok: false, repoId, error: err.message };
+    }
+}
+
+async function enqueueStoryboardGeneration(repoId, role) {
+    const functionName = process.env.AWS_LAMBDA_FUNCTION_NAME;
+    if (!functionName) {
+        throw new Error('Missing AWS_LAMBDA_FUNCTION_NAME; cannot enqueue storyboard generation');
+    }
+
+    const payload = {
+        source: STORYBOARD_ASYNC_EVENT_SOURCE,
+        repoId,
+        role,
+    };
+
+    await lambdaClient.send(new InvokeCommand({
+        FunctionName: functionName,
+        InvocationType: 'Event',
+        Payload: Buffer.from(JSON.stringify(payload)),
+    }));
+}
+
+async function markStoryboardFailure(repoId, err) {
+    if (!repoId) return;
+
+    try {
+        await updateItem(REPOS_TABLE, { repoId }, {
+            status: 'PARSED',
+            storyboardErrorMessage: err?.message || 'Storyboard generation failed',
+        });
+    } catch (updateErr) {
+        console.error('Failed to persist storyboard failure state:', updateErr);
+    }
+}
+
+async function generateStoryboardForRepo(repoId, role) {
+    const moduleGraph = await getJson(`repos/${repoId}/parsed/module-graph.json`);
+    if (!moduleGraph) {
+        throw new Error('Module graph not found — parse the repo first');
+    }
+
+    const compressedGraph = compressModuleGraph(moduleGraph);
+
+    const metadata = await getJson(`repos/${repoId}/metadata.json`);
+    const fileList = (metadata?.fileList || []).slice(0, 300);
+    const commitHistory = (metadata?.commitHistory || []).slice(0, COMMIT_HISTORY_LIMIT);
+
+    const commitHistoryText = commitHistory
+        .map(c => {
+            const shortSha = typeof c.sha === 'string' ? c.sha.slice(0, 7) : 'unknown';
+            const message = truncateText(typeof c.message === 'string' ? c.message : '', COMMIT_MESSAGE_MAX_CHARS);
+            const author = typeof c.author === 'string' ? c.author : 'unknown';
+            const date = typeof c.date === 'string' ? c.date : 'unknown';
+            return `${shortSha} — ${message} (${author}, ${date})`;
+        })
+        .join('\n');
+
+    const storyboardId = uuid();
+
+    const decompositionPrompt = PROMPTS.DECOMPOSE_SYSTEM;
+    const blockListRaw = await invokeModelWithRetry(
+        decompositionPrompt.system,
+        decompositionPrompt.user(compressedGraph, fileList, commitHistoryText),
+        { maxTokens: 4096, temperature: 0.2 }
+    );
+
+    let blockList = parseModelJson(blockListRaw, 'array');
+    if (!blockList) {
+        const blockObj = parseModelJson(blockListRaw, 'object');
+        if (blockObj && Array.isArray(blockObj.blocks)) {
+            blockList = blockObj.blocks;
+        }
+    }
+    if (!Array.isArray(blockList) || blockList.length === 0) {
+        throw new Error('Failed to parse AI block decomposition');
+    }
+
+    const normalizedBlockList = normalizeBlockList(blockList).slice(0, MAX_BLOCKS_TO_GENERATE);
+    if (normalizedBlockList.length === 0) {
+        throw new Error('No valid storyboard blocks were generated');
+    }
+
+    const detailPrompt = PROMPTS.GENERATE_BLOCK_DETAIL;
+    const blockLookup = new Map(normalizedBlockList.map(block => [block.blockId, block]));
+    const snippetCache = new Map();
+
+    const blocks = await mapWithConcurrency(
+        normalizedBlockList,
+        DETAIL_GENERATION_CONCURRENCY,
+        async (blockSkeleton, index) => {
+            const fileContents = await buildBlockFileContext(repoId, blockSkeleton.keyFiles, snippetCache);
+            const depContext = buildDependencyContext(blockSkeleton.prerequisites, blockLookup);
+            const detailRaw = await invokeModelWithRetry(
+                detailPrompt.system,
+                detailPrompt.user(blockSkeleton, fileContents, depContext),
+                { maxTokens: 4096, temperature: 0.3 }
+            );
+
+            const parsedDetail = parseModelJson(detailRaw, 'object');
+            const blockDetail = parsedDetail && typeof parsedDetail === 'object' && !Array.isArray(parsedDetail)
+                ? parsedDetail
+                : {
+                    blockId: blockSkeleton.blockId,
+                    title: blockSkeleton.title,
+                    objective: blockSkeleton.objective,
+                    explanationMarkdown: detailRaw,
+                    dependencySummary: '',
+                    mermaidDiagram: '',
+                    keyTakeaways: [],
+                    suggestedQuestions: [],
+                };
+
+            if (!blockDetail.explanationMarkdown) {
+                blockDetail.explanationMarkdown = '';
+            }
+
+            const diagramRefs = [];
+            if (blockDetail.mermaidDiagram) {
+                const diagramKey = `repos/${repoId}/diagrams/${blockSkeleton.blockId}.mmd`;
+                await uploadText(diagramKey, blockDetail.mermaidDiagram, 'text/plain');
+                diagramRefs.push(diagramKey);
+            }
+
+            const block = {
+                storyboardId,
+                blockId: blockSkeleton.blockId,
+                repoId,
+                title: blockDetail.title || blockSkeleton.title,
+                roleTags: blockSkeleton.roleTags || ['fullstack'],
+                objective: blockDetail.objective || blockSkeleton.objective,
+                explanationMarkdown: blockDetail.explanationMarkdown || '',
+                prerequisites: blockSkeleton.prerequisites || [],
+                next: normalizedBlockList[index + 1] ? [normalizedBlockList[index + 1].blockId] : [],
+                keyFiles: blockSkeleton.keyFiles || [],
+                keySymbols: blockSkeleton.keySymbols || [],
+                dependencySummary: blockDetail.dependencySummary || '',
+                diagramRefs,
+                mermaidDiagram: blockDetail.mermaidDiagram || '',
+                resources: blockDetail.resources || [],
+                keyTakeaways: blockDetail.keyTakeaways || [],
+                suggestedQuestions: blockDetail.suggestedQuestions || [],
+                order: index,
+                estimatedMinutes: blockSkeleton.estimatedMinutes || 10,
+                generatedAt: new Date().toISOString(),
+            };
+
+            await putItem(STORYBOARDS_TABLE, block);
+            return block;
+        },
+    );
+
+    blocks.sort((a, b) => a.order - b.order);
+
+    await uploadJson(`repos/${repoId}/storyboards/${storyboardId}.json`, {
+        storyboardId,
+        repoId,
+        role,
+        blockCount: blocks.length,
+        generatedAt: new Date().toISOString(),
+    });
+
+    const generatedAt = new Date().toISOString();
+    await updateItem(REPOS_TABLE, { repoId }, {
+        status: 'PARSED',
+        storyboardId,
+        storyboardBlockCount: blocks.length,
+        storyboardGeneratedAt: generatedAt,
+        storyboardErrorMessage: null,
+    });
+
+    return {
+        repoId,
+        storyboardId,
+        blockCount: blocks.length,
+        generatedAt,
+        blocks: blocks.map(b => ({
+            blockId: b.blockId,
+            title: b.title,
+            objective: b.objective,
+            order: b.order,
+            roleTags: b.roleTags,
+        })),
+    };
+}
 
 function normalizeBlockList(rawBlocks) {
     const usedIds = new Set();

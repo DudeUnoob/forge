@@ -78,7 +78,14 @@ export const api = {
 
     storyboard: {
         generate: (repoId: string, role?: string) =>
-            request<{ storyboardId: string; blockCount: number }>(`/repos/${repoId}/storyboard`, {
+            request<{
+                storyboardId?: string | null;
+                blockCount?: number;
+                status?: string;
+                inProgress?: boolean;
+                queued?: boolean;
+                cached?: boolean;
+            }>(`/repos/${repoId}/storyboard`, {
                 method: 'POST',
                 body: JSON.stringify({ role }),
             }),
