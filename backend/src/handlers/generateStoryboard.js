@@ -16,7 +16,7 @@ import { success, error, parseBody } from '../shared/response.js';
 
 const REPOS_TABLE = process.env.REPOS_TABLE;
 const STORYBOARDS_TABLE = process.env.STORYBOARDS_TABLE;
-const MAX_PROMPT_CHARS = 150000; // Stay well within Claude Sonnet's context window
+const MAX_PROMPT_CHARS = 150000; // Stay within model context window limits
 const MAX_BLOCKS_TO_GENERATE = 10;
 const DETAIL_GENERATION_CONCURRENCY = clampNumber(process.env.STORYBOARD_DETAIL_CONCURRENCY, 3, 1, 6);
 const MAX_KEY_FILES_PER_BLOCK = 4;

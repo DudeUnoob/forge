@@ -15,7 +15,7 @@ Globals:
         CHAT_TABLE: !Ref ChatHistoryTable
         PROGRESS_TABLE: !Ref ProgressTable
         ARTIFACTS_BUCKET: !Ref ForgeArtifactsBucket
-        BEDROCK_MODEL_ID: anthropic.claude-3-sonnet-20240229-v1:0
+        BEDROCK_MODEL_ID: amazon.nova-2-lite-v1:0
     Architectures:
       - x86_64
 

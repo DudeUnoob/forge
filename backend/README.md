@@ -38,7 +38,7 @@ aws sts get-caller-identity
 ## 3) Enable Bedrock model access
 
 This backend calls Bedrock model:
-- `anthropic.claude-3-sonnet-20240229-v1:0`
+- `amazon.nova-2-lite-v1:0`
 
 In AWS Console:
 1. Open Amazon Bedrock.
@@ -118,6 +118,28 @@ This repo config uses port `3001` to match frontend default API base and loads
 If your AWS account/region changes, update `env.local.json` (especially
 `ARTIFACTS_BUCKET`).
 
+`sam local` uses `env.local.json` values, which can override the defaults in
+`template.yaml`. Keep `BEDROCK_MODEL_ID` aligned across both files.
+
+## 10) Sync deployed Lambda model setting
+
+After changing `BEDROCK_MODEL_ID`, redeploy so existing functions pick up the
+new environment value:
+
+```bash
+sam build
+sam deploy
+```
+
+Then verify the deployed functions are using the expected model id:
+
+```bash
+aws lambda get-function-configuration \
+  --function-name <function-name> \
+  --query "Environment.Variables.BEDROCK_MODEL_ID" \
+  --output text
+```
+
 ## Common failures and fixes
 
 1. `sam: command not found`
@@ -144,3 +166,7 @@ If your AWS account/region changes, update `env.local.json` (especially
 6. Frontend works but API calls fail locally
 - Ensure backend local API is on `http://localhost:3001`.
 - Ensure frontend `NEXT_PUBLIC_API_URL` matches.
+
+7. Local output differs from deployed output
+- Compare `backend/env.local.json` `BEDROCK_MODEL_ID` with deployed Lambda
+  environment variables.
