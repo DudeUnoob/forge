@@ -656,6 +656,11 @@
     padding: 6px 0;
 }
 
+.code-viewer .react-syntax-highlighter-line-number {
+    color: #858585 !important;
+    opacity: 1 !important;
+}
+
 .code-line {
     display: flex;
     min-height: 19px;
