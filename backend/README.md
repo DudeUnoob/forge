@@ -162,6 +162,15 @@ the Lambda continues in async mode. Poll `GET /repos/{id}` until:
 
 If parse is already in progress, the endpoint returns `202` with `inProgress`.
 
+## 13) Ingest is asynchronous
+
+`POST /repos` now queues clone/upload and often returns `202` while the Lambda
+continues in async mode. Poll `GET /repos/{id}` until:
+- `status` is `UPLOADED` or `PARSED` (ready)
+- or `status` is `ERROR` with `errorMessage` (failed)
+
+If ingest is already running, status remains `CLONING` until upload completes.
+
 ## Common failures and fixes
 
 1. `sam: command not found`
@@ -200,3 +209,7 @@ If parse is already in progress, the endpoint returns `202` with `inProgress`.
 9. Parse endpoint returns `202` instead of immediate module counts
 - This is expected with async parsing.
 - Poll `GET /repos/{id}` until `status` becomes `PARSED` or `ERROR`.
+
+10. Ingest endpoint returns `202` instead of immediate file count
+- This is expected with async ingest.
+- Poll `GET /repos/{id}` until `status` becomes `UPLOADED`, `PARSED`, or `ERROR`.

@@ -45,11 +45,13 @@ export const api = {
                 repoId: string;
                 status: string;
                 fileCount: number;
-                commitSha?: string;
+                commitSha?: string | null;
                 storyboardId?: string | null;
                 cached?: boolean;
                 reused?: boolean;
                 reusedFromRepoId?: string;
+                inProgress?: boolean;
+                queued?: boolean;
             }>('/repos', {
                 method: 'POST',
                 body: JSON.stringify({ gitUrl, name }),

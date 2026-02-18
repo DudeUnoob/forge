@@ -6,8 +6,9 @@ import git from 'isomorphic-git';
 import http from 'isomorphic-git/http/node';
 import fs from 'node:fs';
 import path from 'node:path';
+import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 import { v4 as uuid } from 'uuid';
-import { putItem, scanItems, updateItem } from '../lib/dynamo.js';
+import { getItem, putItem, scanItems, updateItem } from '../lib/dynamo.js';
 import { uploadText, uploadJson } from '../lib/s3.js';
 import { success, error, parseBody } from '../shared/response.js';
 
@@ -15,8 +16,23 @@ const REPOS_TABLE = process.env.REPOS_TABLE;
 const TMP_ROOT = '/tmp/forge-repos';
 const GITHUB_API_BASE = 'https://api.github.com';
 const GITHUB_TIMEOUT_MS = 4500;
+const INGEST_ASYNC_EVENT_SOURCE = 'forge.repo.ingest';
+
+const lambdaClient = new LambdaClient({});
 
 export const handler = async (event) => {
+    if (isAsyncIngestInvocation(event)) {
+        return await handleAsyncIngestInvocation(event);
+    }
+
+    return await handleIngestHttpRequest(event);
+};
+
+function isAsyncIngestInvocation(event) {
+    return event?.source === INGEST_ASYNC_EVENT_SOURCE;
+}
+
+async function handleIngestHttpRequest(event) {
     try {
         const body = parseBody(event);
         const { gitUrl, name } = body;
@@ -63,87 +79,189 @@ export const handler = async (event) => {
             createdAt: new Date().toISOString(),
         });
 
-        const dir = path.join(TMP_ROOT, repoId);
-        await fs.promises.mkdir(dir, { recursive: true });
-
         try {
-            await git.clone({
-                fs,
-                http,
-                dir,
-                url: gitUrl,
-                singleBranch: true,
-                depth: 50, // Get last 50 commits for history
-            });
-
-            // Get commit history
-            const commits = await git.log({ fs, dir, depth: 20 });
-            const commitHistory = commits.map(c => ({
-                sha: c.oid.substring(0, 7),
-                message: c.commit.message.trim(),
-                author: c.commit.author.name,
-                date: new Date(c.commit.author.timestamp * 1000).toISOString(),
-            }));
-
-            // Get the HEAD SHA
-            const headSha = commits[0]?.oid || 'unknown';
-
-            // Walk the tree and collect all files
-            const files = [];
-            await walkTree(dir, '', files);
-
-            // Upload files to S3 in parallel batches
-            const fileList = files.map(f => f.path);
-            const BATCH_SIZE = 25;
-            for (let i = 0; i < files.length; i += BATCH_SIZE) {
-                const batch = files.slice(i, i + BATCH_SIZE);
-                await Promise.all(
-                    batch.map(file => {
-                        const s3Key = `repos/${repoId}/files/${file.path}`;
-                        return uploadText(s3Key, file.content);
-                    })
-                );
-            }
-
-            // Store metadata
-            await uploadJson(`repos/${repoId}/metadata.json`, {
+            await enqueueIngest({
                 repoId,
-                name: repoName,
+                repoName,
                 gitUrl,
                 gitUrlCanonical: normalizedGitUrl,
-                headSha,
-                commitHistory,
-                fileList,
-                fileCount: files.length,
+                isPublicRepo: githubHead?.isPublic === true,
             });
-
-            // Update repo status
-            await updateItem(REPOS_TABLE, { repoId }, {
-                status: 'UPLOADED',
-                commitSha: headSha,
-                fileCount: files.length,
-                commitHistory: JSON.stringify(commitHistory),
-                gitUrlCanonical: normalizedGitUrl,
-            });
-
-            return success({
-                repoId,
-                name: repoName,
-                status: 'UPLOADED',
-                fileCount: files.length,
-                commitSha: headSha,
-                storyboardId: null,
-                cached: false,
-            }, 201);
-        } finally {
-            await fs.promises.rm(dir, { recursive: true, force: true }).catch(() => { });
+        } catch (err) {
+            await markIngestFailure(repoId, err);
+            throw err;
         }
 
+        return success({
+            repoId,
+            name: repoName,
+            status: 'CLONING',
+            fileCount: 0,
+            commitSha: null,
+            storyboardId: null,
+            cached: false,
+            inProgress: true,
+            queued: true,
+        }, 202);
     } catch (err) {
-        console.error('IngestRepo error:', err);
+        console.error('IngestRepo enqueue error:', err);
         return error(`Failed to ingest repository: ${err.message}`, 500);
     }
-};
+}
+
+async function handleAsyncIngestInvocation(event) {
+    const repoId = typeof event?.repoId === 'string' ? event.repoId : '';
+    const repoName = typeof event?.repoName === 'string' ? event.repoName : '';
+    const gitUrl = typeof event?.gitUrl === 'string' ? event.gitUrl : '';
+    const gitUrlCanonical = typeof event?.gitUrlCanonical === 'string' ? event.gitUrlCanonical : normalizeGitUrl(gitUrl);
+
+    if (!repoId || !repoName || !gitUrl) {
+        console.error('IngestRepo async invocation missing required fields');
+        return { ok: false, reason: 'missing_fields' };
+    }
+
+    try {
+        const repo = await getItem(REPOS_TABLE, { repoId });
+        if (!repo) {
+            throw new Error(`Repo not found for async ingest: ${repoId}`);
+        }
+
+        if (repo.status === 'UPLOADED' || repo.status === 'PARSED') {
+            return {
+                ok: true,
+                repoId,
+                status: repo.status,
+                cached: true,
+                commitSha: repo.commitSha || null,
+                fileCount: repo.fileCount || 0,
+            };
+        }
+
+        if (repo.status !== 'CLONING') {
+            await updateItem(REPOS_TABLE, { repoId }, {
+                status: 'CLONING',
+                errorMessage: null,
+            });
+        }
+
+        const ingestResult = await ingestRepoContents({
+            repoId,
+            repoName,
+            gitUrl,
+            gitUrlCanonical,
+        });
+
+        await updateItem(REPOS_TABLE, { repoId }, {
+            status: 'UPLOADED',
+            commitSha: ingestResult.headSha,
+            fileCount: ingestResult.fileCount,
+            commitHistory: JSON.stringify(ingestResult.commitHistory),
+            gitUrlCanonical,
+            errorMessage: null,
+        });
+
+        return {
+            ok: true,
+            repoId,
+            status: 'UPLOADED',
+            commitSha: ingestResult.headSha,
+            fileCount: ingestResult.fileCount,
+        };
+    } catch (err) {
+        console.error('IngestRepo async worker error:', err);
+        await markIngestFailure(repoId, err);
+        return { ok: false, repoId, error: err.message };
+    }
+}
+
+async function enqueueIngest(payload) {
+    const functionName = process.env.AWS_LAMBDA_FUNCTION_NAME;
+    if (!functionName) {
+        throw new Error('Missing AWS_LAMBDA_FUNCTION_NAME; cannot enqueue ingest');
+    }
+
+    await lambdaClient.send(new InvokeCommand({
+        FunctionName: functionName,
+        InvocationType: 'Event',
+        Payload: Buffer.from(JSON.stringify({
+            source: INGEST_ASYNC_EVENT_SOURCE,
+            ...payload,
+        })),
+    }));
+}
+
+async function markIngestFailure(repoId, err) {
+    if (!repoId) return;
+
+    try {
+        await updateItem(REPOS_TABLE, { repoId }, {
+            status: 'ERROR',
+            errorMessage: err?.message || 'Ingest failed',
+        });
+    } catch (updateErr) {
+        console.error('Failed to persist ingest failure state:', updateErr);
+    }
+}
+
+async function ingestRepoContents({ repoId, repoName, gitUrl, gitUrlCanonical }) {
+    const dir = path.join(TMP_ROOT, repoId);
+    await fs.promises.mkdir(dir, { recursive: true });
+
+    try {
+        await git.clone({
+            fs,
+            http,
+            dir,
+            url: gitUrl,
+            singleBranch: true,
+            depth: 50,
+        });
+
+        const commits = await git.log({ fs, dir, depth: 20 });
+        const commitHistory = commits.map(c => ({
+            sha: c.oid.substring(0, 7),
+            message: c.commit.message.trim(),
+            author: c.commit.author.name,
+            date: new Date(c.commit.author.timestamp * 1000).toISOString(),
+        }));
+
+        const headSha = commits[0]?.oid || 'unknown';
+
+        const files = [];
+        await walkTree(dir, '', files);
+
+        const fileList = files.map(f => f.path);
+        const batchSize = 25;
+        for (let i = 0; i < files.length; i += batchSize) {
+            const batch = files.slice(i, i + batchSize);
+            await Promise.all(
+                batch.map(file => {
+                    const s3Key = `repos/${repoId}/files/${file.path}`;
+                    return uploadText(s3Key, file.content);
+                }),
+            );
+        }
+
+        await uploadJson(`repos/${repoId}/metadata.json`, {
+            repoId,
+            name: repoName,
+            gitUrl,
+            gitUrlCanonical,
+            headSha,
+            commitHistory,
+            fileList,
+            fileCount: files.length,
+        });
+
+        return {
+            headSha,
+            commitHistory,
+            fileCount: files.length,
+        };
+    } finally {
+        await fs.promises.rm(dir, { recursive: true, force: true }).catch(() => { });
+    }
+}
 
 async function findReusableRepo(gitUrlCanonical, headSha) {
     const repos = await scanItems(REPOS_TABLE);

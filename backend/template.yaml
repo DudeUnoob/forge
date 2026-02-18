@@ -57,6 +57,11 @@ Resources:
             TableName: !Ref ReposTable
         - S3CrudPolicy:
             BucketName: !Ref ForgeArtifactsBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - lambda:InvokeFunction
+              Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-IngestRepoFunction-*
 
   GetRepoFunction:
     Type: AWS::Serverless::Function

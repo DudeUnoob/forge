@@ -10,6 +10,8 @@ const STORYBOARD_POLL_INTERVAL_MS = 3000;
 const STORYBOARD_POLL_TIMEOUT_MS = 6 * 60 * 1000;
 const PARSE_POLL_INTERVAL_MS = 3000;
 const PARSE_POLL_TIMEOUT_MS = 6 * 60 * 1000;
+const INGEST_POLL_INTERVAL_MS = 3000;
+const INGEST_POLL_TIMEOUT_MS = 8 * 60 * 1000;
 
 export default function LandingPage() {
   const router = useRouter();
@@ -93,6 +95,41 @@ export default function LandingPage() {
     throw new Error('Repository parsing is taking longer than expected. Please retry in a moment.');
   };
 
+  const waitForIngest = async (repoId: string): Promise<Repo> => {
+    const startedAt = Date.now();
+
+    while (Date.now() - startedAt < INGEST_POLL_TIMEOUT_MS) {
+      await new Promise((resolve) => setTimeout(resolve, INGEST_POLL_INTERVAL_MS));
+
+      let repo: Repo;
+      try {
+        repo = await api.repos.get(repoId);
+      } catch {
+        continue;
+      }
+
+      if (repo.status === 'UPLOADED' || repo.status === 'PARSED') {
+        return repo;
+      }
+
+      if (repo.status === 'ERROR') {
+        throw new Error(repo.errorMessage || 'Repository ingest failed');
+      }
+
+      if (repo.status === 'CLONING') {
+        setStatus('Cloning repository and uploading files...');
+      } else {
+        setStatus('Preparing repository...');
+      }
+
+      const elapsed = Date.now() - startedAt;
+      const ratio = Math.min(1, elapsed / INGEST_POLL_TIMEOUT_MS);
+      setProgress(15 + Math.round(ratio * 15));
+    }
+
+    throw new Error('Repository ingest is taking longer than expected. Please retry in a moment.');
+  };
+
   const handleIngest = async () => {
     if (!gitUrl.trim()) return;
 
@@ -106,6 +143,7 @@ export default function LandingPage() {
       const ingestResult = await api.repos.ingest(gitUrl.trim());
       const { repoId } = ingestResult;
       let storyboardId = ingestResult.storyboardId || null;
+      let repoStatus = ingestResult.status;
 
       if (ingestResult.cached && ingestResult.status === 'PARSED' && storyboardId) {
         setStatus('Cached build found. Launching workspace...');
@@ -116,8 +154,16 @@ export default function LandingPage() {
         return;
       }
 
+      if (repoStatus === 'CLONING') {
+        setStatus('Ingest request accepted. Waiting for repository upload...');
+        setProgress(15);
+        const ingestedRepo = await waitForIngest(repoId);
+        repoStatus = ingestedRepo.status;
+        storyboardId = storyboardId || ingestedRepo.storyboardId || null;
+      }
+
       // Step 2: Parse (skip if already parsed)
-      if (ingestResult.status !== 'PARSED') {
+      if (repoStatus !== 'PARSED') {
         setStatus('Repository cloned. Parsing modules...');
         setProgress(35);
         const parseResult = await api.repos.parse(repoId);
