@@ -6,6 +6,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import url('https://cdn.jsdelivr.net/npm/@vscode/codicons@0.0.36/dist/codicon.css');
 
+/* Tailwind (Preflight disabled via config to avoid clobbering workspace styles) */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
   /* ---- Core palette (Catppuccin Mocha inspired) ---- */
   --bg-base: #1e1e2e;
@@ -141,6 +146,12 @@ body {
 ::selection {
   background: var(--accent-muted);
   color: var(--text-primary);
+}
+
+/* Landing page selection override */
+.landing-page ::selection {
+  background: rgba(255, 77, 0, 0.3);
+  color: #ffffff;
 }
 
 /* ---- Links ---- */
@@ -463,4 +474,24 @@ textarea::placeholder {
 .markdown-content em {
   color: var(--text-secondary);
   font-style: italic;
+}
+
+/* ====================================
+   Landing Page Overrides
+   Scoped under .landing-page so they
+   never affect the workspace UI.
+   ==================================== */
+
+.landing-page {
+  overflow-x: hidden;
+  overflow-y: auto;
+  height: auto;
+}
+
+.landing-page a {
+  color: inherit;
+}
+
+.landing-page a:hover {
+  text-decoration: none;
 }
