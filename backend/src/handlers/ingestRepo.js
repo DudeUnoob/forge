@@ -92,16 +92,18 @@ async function handleIngestHttpRequest(event) {
             throw err;
         }
 
+        // Locally, enqueueIngest runs synchronously so the status is already UPLOADED.
+        const isLocal = Boolean(process.env.AWS_SAM_LOCAL);
         return success({
             repoId,
             name: repoName,
-            status: 'CLONING',
+            status: isLocal ? 'UPLOADED' : 'CLONING',
             fileCount: 0,
             commitSha: null,
             storyboardId: null,
             cached: false,
-            inProgress: true,
-            queued: true,
+            inProgress: !isLocal,
+            queued: !isLocal,
         }, 202);
     } catch (err) {
         console.error('IngestRepo enqueue error:', err);
@@ -175,6 +177,16 @@ async function handleAsyncIngestInvocation(event) {
 }
 
 async function enqueueIngest(payload) {
+    // When running locally via `sam local`, there is no reachable Lambda endpoint
+    // to self-invoke, so we run the ingest synchronously instead.
+    if (process.env.AWS_SAM_LOCAL) {
+        await handleAsyncIngestInvocation({
+            source: INGEST_ASYNC_EVENT_SOURCE,
+            ...payload,
+        });
+        return;
+    }
+
     const functionName = process.env.AWS_LAMBDA_FUNCTION_NAME;
     if (!functionName) {
         throw new Error('Missing AWS_LAMBDA_FUNCTION_NAME; cannot enqueue ingest');
