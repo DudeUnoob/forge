@@ -5,8 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion, Variants } from 'framer-motion';
 import { api } from '@/lib/api';
 import type { Repo } from '@/lib/types';
-import { Canvas } from '@react-three/fiber';
-import DroidCore3D from './DroidCore3D';
+import AgentNetworkVisualizer from './AgentNetworkVisualizer';
 
 const STORYBOARD_POLL_INTERVAL_MS = 3000;
 const STORYBOARD_POLL_TIMEOUT_MS = 6 * 60 * 1000;
@@ -245,10 +244,11 @@ export default function HeroSection() {
   };
 
   return (
-    <section className="relative flex min-h-[100dvh] items-center px-6 pt-20 overflow-hidden">
-      <motion.div 
-        className="z-10 flex w-full max-w-2xl flex-col gap-8"
-        initial="hidden"
+    <section className="relative flex min-h-[100dvh] w-full items-center px-6 pt-20 overflow-hidden">
+      <div className="mx-auto flex w-full max-w-7xl items-center relative z-10">
+        <motion.div 
+          className="z-10 flex w-full max-w-2xl flex-col gap-8"
+          initial="hidden"
         animate="visible"
         variants={{
           hidden: {},
@@ -317,15 +317,10 @@ export default function HeroSection() {
         )}
       </motion.div>
 
-      <motion.div 
-        className="pointer-events-none absolute right-0 top-0 h-full w-full opacity-30 md:w-1/2 md:opacity-100"
-        animate={{ y: [0, -15, 0] }}
-        transition={{ repeat: Infinity, duration: 6, ease: "easeInOut" }}
-      >
-        <Canvas camera={{ position: [0, 0, 8] }}>
-          <DroidCore3D />
-        </Canvas>
-      </motion.div>
+        <div className="pointer-events-none absolute right-0 top-0 h-full w-full opacity-30 md:w-[600px] md:opacity-100 flex items-center justify-center">
+          <AgentNetworkVisualizer />
+        </div>
+      </div>
     </section>
   );
 }

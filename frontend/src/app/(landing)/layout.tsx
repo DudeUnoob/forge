@@ -1,19 +1,19 @@
 import type { Metadata } from "next";
-import "./globals.css";
+import "../landing.css";
 
 export const metadata: Metadata = {
   title: "Forge — AI Codebase Onboarding",
   description: "Turn any repository into an interactive storyboard that teaches you the system step-by-step",
 };
 
-export default function RootLayout({
+export default function LandingLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className="bg-obsidian text-steel font-sans antialiased">{children}</body>
     </html>
   );
 }

@@ -4,21 +4,21 @@ import HeroSection from '@/components/landing/HeroSection';
 import KineticMarquee from '@/components/animations/KineticMarquee';
 import ShowcaseSection from '@/components/landing/ShowcaseSection';
 import PivotSection from '@/components/landing/PivotSection';
-import NewsSection from '@/components/landing/NewsSection';
-import CareersSection from '@/components/landing/CareersSection';
+import ArchitectureSection from '@/components/landing/ArchitectureSection';
+import RoadmapSection from '@/components/landing/RoadmapSection';
 import Footer from '@/components/landing/Footer';
 
 export default function LandingPage() {
   return (
-    <main className="landing-page relative bg-obsidian text-steel font-sans antialiased">
+    <main className="relative bg-obsidian text-steel">
       <GridOverlay />
       <Navigation />
       <HeroSection />
       <KineticMarquee />
       <ShowcaseSection />
       <PivotSection />
-      <NewsSection />
-      <CareersSection />
+      <ArchitectureSection />
+      <RoadmapSection />
       <Footer />
     </main>
   );

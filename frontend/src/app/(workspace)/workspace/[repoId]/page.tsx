@@ -5,7 +5,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import type { Repo, FileNode, Storyboard, StoryboardBlock, ChatMessage, Role } from '@/lib/types';
 import { ROLES } from '@/lib/types';
-import '../../workspace.css';
+import '../../../workspace.css';
 
 // ---- Syntax Highlighting ----
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';

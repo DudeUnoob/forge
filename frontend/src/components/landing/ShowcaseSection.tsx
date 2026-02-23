@@ -29,44 +29,68 @@ const FEATURES = [
   }
 ];
 
+const variants = {
+  enter: (direction: number) => {
+    return {
+      y: direction > 0 ? 80 : -80,
+      opacity: 0,
+      scale: 0.95,
+      filter: "blur(8px)"
+    };
+  },
+  center: {
+    zIndex: 1,
+    y: 0,
+    opacity: 1,
+    scale: 1,
+    filter: "blur(0px)"
+  },
+  exit: (direction: number) => {
+    return {
+      zIndex: 0,
+      y: direction < 0 ? 80 : -80,
+      opacity: 0,
+      scale: 0.95,
+      filter: "blur(8px)"
+    };
+  }
+};
+
 export default function ShowcaseSection() {
   const sectionRef = useRef<HTMLDivElement>(null);
-  const leftColRef = useRef<HTMLDivElement>(null);
-  const rightColRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const [activeFeature, setActiveFeature] = useState(FEATURES[0].id);
+  const [[activeIdx, direction], setPage] = useState([0, 0]);
+  const activeFeature = FEATURES[activeIdx];
 
   useEffect(() => {
     gsap.registerPlugin(ScrollTrigger);
 
-    if (!sectionRef.current || !rightColRef.current || !leftColRef.current || !containerRef.current) return;
+    if (!sectionRef.current) return;
 
-    // Pin the entire section
     ScrollTrigger.create({
       trigger: sectionRef.current,
       start: 'top top',
       end: '+=300%', // Scroll for 3 screen heights
       pin: true,
       anticipatePin: 1,
+      snap: {
+        snapTo: 1 / (FEATURES.length - 1),
+        duration: 0.5,
+        ease: "power4.inOut"
+      },
       onUpdate: (self) => {
         const progress = self.progress;
-        let activeIdx = Math.floor(progress * FEATURES.length);
-        if (activeIdx >= FEATURES.length) activeIdx = FEATURES.length - 1;
-        setActiveFeature(FEATURES[activeIdx].id);
+        let idx = Math.floor(progress * FEATURES.length);
+        if (idx >= FEATURES.length) idx = FEATURES.length - 1;
+        
+        setPage((prev) => {
+          if (prev[0] !== idx) {
+             return [idx, idx > prev[0] ? 1 : -1];
+          }
+          return prev;
+        });
       }
-    });
-
-    // Animate the right column content vertically based on scroll
-    gsap.to(rightColRef.current, {
-      yPercent: -75, // Assuming 4 panels, we move up 75% to show the last one
-      ease: 'none',
-      scrollTrigger: {
-        trigger: sectionRef.current,
-        start: 'top top',
-        end: '+=300%',
-        scrub: 1,
-      },
     });
 
     return () => {
@@ -75,31 +99,36 @@ export default function ShowcaseSection() {
   }, []);
 
   return (
-    <section ref={sectionRef} id="features" className="min-h-[100dvh] bg-obsidian py-24 px-6 relative z-10 overflow-hidden">
+    <section ref={sectionRef} id="features" className="min-h-[100dvh] bg-obsidian py-24 px-6 relative z-10 overflow-hidden border-t border-[#1A1A1A]">
       <div className="mx-auto max-w-7xl h-full flex flex-col" ref={containerRef}>
         
-        <div className="grid grid-cols-1 gap-16 md:grid-cols-12 h-full items-center flex-1">
+        <div className="grid grid-cols-1 gap-12 md:gap-16 md:grid-cols-12 h-[600px] items-start pt-8">
           {/* Left Panel: Tabs & Controls */}
-          <div ref={leftColRef} className="col-span-1 md:col-span-5 flex flex-col gap-12 h-full justify-center">
-            <h2 className="font-sans text-4xl font-semibold tracking-tighter text-pure-white md:text-6xl">
+          <div className="col-span-1 md:col-span-5 flex flex-col gap-8 h-full">
+            <h2 className="font-sans text-5xl font-bold tracking-tighter text-pure-white md:text-6xl lg:text-7xl leading-[1.05]">
               Learn systems exactly as they were built.
             </h2>
-            <p className="font-sans text-lg text-steel max-w-[40ch]">
+            <p className="font-sans text-lg text-steel max-w-[38ch]">
               Forge embeds directly into your learning workflow, replacing unstructured docs with guided, block-by-block mastery.
             </p>
 
-            <div className="flex flex-col gap-4 mt-8 relative">
+            <div className="flex flex-col gap-3 mt-4 relative">
               {FEATURES.map((feature, index) => {
-                const isActive = activeFeature === feature.id;
+                const isActive = activeIdx === index;
                 return (
                   <button
                     key={feature.id}
                     onClick={() => {
-                      // Optionally, implement click-to-scroll here if needed
+                      const st = ScrollTrigger.getAll().find(t => t.trigger === sectionRef.current);
+                      if (st) {
+                        const targetProgress = index / FEATURES.length;
+                        const scrollPos = st.start + (st.end - st.start) * targetProgress;
+                        window.scrollTo({ top: scrollPos, behavior: 'smooth' });
+                      }
                     }}
-                    className={`relative text-left px-6 py-4 border border-[#313150] transition-colors duration-300 rounded-lg overflow-hidden group ${
-                      isActive ? 'bg-[#0A0A0A]' : 'bg-transparent hover:bg-[#11111A]'
-                    }`}
+                    className={`relative text-left px-6 py-5 border transition-colors duration-300 rounded-lg overflow-hidden group outline-none ${
+                      isActive ? 'bg-[#0A0A0A] border-[#313150]' : 'bg-transparent border-[#1A1A1A] hover:bg-[#11111A] hover:border-[#313150]'
+                    } active:scale-[0.98] transition-transform`}
                   >
                     {isActive && (
                       <motion.div
@@ -111,20 +140,22 @@ export default function ShowcaseSection() {
                     )}
                     <div className="flex flex-col gap-2 relative z-10">
                       <div className="flex items-center justify-between">
-                        <span className={`font-mono text-xs tracking-widest uppercase transition-colors duration-300 ${isActive ? 'text-safety-orange' : 'text-steel group-hover:text-pure-white'}`}>
+                        <span className={`font-mono text-[11px] tracking-widest uppercase transition-colors duration-300 ${isActive ? 'text-safety-orange' : 'text-steel/50 group-hover:text-steel'}`}>
                           0{index + 1} - {feature.label}
                         </span>
                       </div>
-                      <AnimatePresence>
+                      <AnimatePresence initial={false}>
                         {isActive && (
-                          <motion.p
+                          <motion.div
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: 'auto', opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
-                            className="font-sans text-sm text-steel leading-relaxed"
+                            transition={{ type: "spring", stiffness: 100, damping: 20 }}
                           >
-                            {feature.description}
-                          </motion.p>
+                            <p className="font-sans text-sm text-steel/80 leading-relaxed mt-2">
+                              {feature.description}
+                            </p>
+                          </motion.div>
                         )}
                       </AnimatePresence>
                     </div>
@@ -135,142 +166,208 @@ export default function ShowcaseSection() {
           </div>
 
           {/* Right Panel: Scrolling UI Mockups */}
-          <div className="col-span-1 md:col-span-7 h-[600px] overflow-hidden rounded-lg relative bg-obsidian">
-            <div ref={rightColRef} className="flex flex-col w-full h-[400%]">
-              
-              {/* Panel 1: Storyboards */}
-              <div className="h-[25%] p-8 w-full flex items-center justify-center border border-[#313150] bg-[#0A0A0A] rounded-lg">
-                 <div className="w-full h-full border border-safety-orange/30 bg-[#0A0A0A] p-8 rounded-lg relative overflow-hidden flex flex-col justify-center">
-                    <div className="absolute top-0 left-0 w-1 h-full bg-safety-orange drop-shadow-[0_0_8px_rgba(255,77,0,0.8)]"></div>
-                    <div className="mb-4 flex items-center justify-between">
-                      <span className="font-mono text-xs text-safety-orange tracking-widest uppercase bg-safety-orange/10 px-3 py-1 rounded">Block 3 of 12</span>
-                      <span className="font-mono text-[10px] text-steel border border-[#313150] px-2 py-1 rounded">BACKEND PATH</span>
-                    </div>
-                    <h3 className="font-sans text-3xl font-semibold text-pure-white tracking-tighter mb-4">Authentication Lifecycle</h3>
-                    <p className="font-sans text-base text-steel leading-relaxed mb-8">
-                      Understand how requests traverse the backend and where session data is verified before reaching the core API controllers.
-                    </p>
+          <div className="col-span-1 md:col-span-7 h-[600px] w-full relative">
+            {/* Outer wireframe container */}
+            <div className="absolute inset-0 border border-[#1A1A1A] rounded-2xl bg-[#050505] p-2 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.5)]">
+              <div className="w-full h-full border border-[#1A1A1A] rounded-xl overflow-hidden relative bg-[#020202]">
+                
+                <AnimatePresence initial={false} custom={direction}>
+                  <motion.div
+                    key={activeIdx}
+                    custom={direction}
+                    variants={variants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{
+                      y: { type: "spring", stiffness: 300, damping: 30 },
+                      opacity: { duration: 0.2 },
+                      filter: { duration: 0.3 }
+                    }}
+                    className="absolute inset-0 p-4 md:p-10 flex items-center justify-center"
+                  >
                     
-                    <div className="flex gap-4">
-                      <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="bg-pure-white text-obsidian px-6 py-3 font-sans text-sm font-bold transition-colors hover:bg-safety-orange hover:text-pure-white drop-shadow-[0_0_12px_rgba(255,77,0,0.3)]">
-                        Mark Complete
-                      </motion.button>
-                      <button className="border border-[#313150] text-pure-white px-6 py-3 font-sans text-sm transition-colors hover:bg-[#1A1A1A]">
-                        View Diagram
-                      </button>
-                    </div>
-                 </div>
-              </div>
+                    {/* Panel 1: Storyboards */}
+                    {activeFeature.id === 'storyboards' && (
+                       <div className="w-full h-full border border-[#1A1A1A] bg-[#0A0A0A] p-8 rounded-xl relative flex flex-col shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+                          <div className="absolute top-0 left-0 w-1 h-full bg-steel/30"></div>
+                          <div className="mb-4 flex items-center justify-between">
+                            <span className="font-mono text-[10px] text-steel tracking-widest uppercase bg-steel/10 px-3 py-1 rounded">Block 3 of 12</span>
+                            <span className="font-mono text-[10px] text-steel/50 border border-[#1A1A1A] px-2 py-1 rounded">BACKEND PATH</span>
+                          </div>
+                          <h3 className="font-sans text-2xl font-medium text-pure-white tracking-tight mb-3">Authentication Lifecycle</h3>
+                          <p className="font-sans text-sm text-steel/70 leading-relaxed mb-6 max-w-[90%]">
+                            Understand how requests traverse the backend and where session data is verified before reaching the core API controllers.
+                          </p>
+                          
+                          <div className="flex gap-4 mt-auto">
+                            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="bg-pure-white text-obsidian px-5 py-2.5 rounded font-sans text-xs font-semibold transition-colors hover:bg-steel outline-none">
+                              Mark Complete
+                            </motion.button>
+                            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="border border-[#313150] text-pure-white px-5 py-2.5 rounded font-sans text-xs transition-colors hover:bg-[#1A1A1A] outline-none">
+                              View Diagram
+                            </motion.button>
+                          </div>
+                       </div>
+                    )}
 
-              {/* Panel 2: IDE Explorer */}
-              <div className="h-[25%] p-8 w-full flex items-center justify-center border border-[#313150] bg-[#0A0A0A] rounded-lg mt-8">
-                 <div className="w-full h-full flex flex-col border border-[#313150] bg-[#050505] rounded-lg overflow-hidden">
-                    <div className="flex items-center justify-between border-b border-[#313150] bg-[#11111A] px-4 py-3">
-                      <div className="flex items-center gap-4">
-                        <div className="flex gap-2">
-                          <div className="h-3 w-3 rounded-full bg-[#FF5F56]"></div>
-                          <div className="h-3 w-3 rounded-full bg-[#FFBD2E]"></div>
-                          <div className="h-3 w-3 rounded-full bg-[#27C93F]"></div>
-                        </div>
-                        <div className="flex items-center gap-2 font-mono text-xs text-steel">
-                          <TreeStructure size={14} />
-                          <span>forge-workspace</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex flex-1 overflow-hidden">
-                      <div className="w-48 border-r border-[#313150] bg-[#0A0A0A] p-4 hidden md:block">
-                        <div className="font-mono text-[10px] uppercase tracking-widest text-steel mb-4 font-bold">Explorer</div>
-                        <div className="font-mono text-xs text-steel space-y-3">
-                          <div className="flex items-center gap-2 text-pure-white"><CaretRight size={10} className="rotate-90"/> src</div>
-                          <div className="pl-4 flex items-center gap-2"><CaretRight size={10} className="rotate-90"/> middleware</div>
-                          <div className="pl-8 text-safety-orange font-bold drop-shadow-[0_0_4px_rgba(255,77,0,0.5)]">AuthMiddleware.tsx</div>
-                          <div className="pl-8">RateLimit.tsx</div>
-                          <div className="flex items-center gap-2"><CaretRight size={10}/> routes</div>
-                        </div>
-                      </div>
-                      <div className="p-6 font-mono text-sm text-steel leading-relaxed flex-1 overflow-hidden relative">
-                        <motion.div 
-                          animate={{ y: [0, -5, 0] }} 
-                          transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
-                        >
-                          <pre>
-                            <code className="text-[#A6E3A1]">import</code> {'{ useState }'} <code className="text-[#A6E3A1]">from</code> <code className="text-[#F9E2AF]">'react'</code>;<br/><br/>
-                            <code className="text-[#6c7086]">{'// Forge Block 3: Authentication Lifecycle'}</code><br/>
-                            <code className="text-[#A6E3A1]">export default function</code> <code className="text-[#89B4FA]">AuthMiddleware</code>() {'{'}<br/>
-                            {'  '}const [isValid, setIsValid] = useState(false);<br/>
-                            {'  '}// ...<br/>
-                            {'}'}
-                          </pre>
-                        </motion.div>
-                      </div>
-                    </div>
-                 </div>
-              </div>
+                    {/* Panel 2: IDE Explorer */}
+                    {activeFeature.id === 'ide' && (
+                       <div className="w-full h-full flex flex-col border border-[#1A1A1A] bg-[#050505] rounded-xl overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+                          <div className="flex items-center justify-between border-b border-[#1A1A1A] bg-[#0A0A0A] px-4 py-3">
+                            <div className="flex items-center gap-4">
+                              <div className="flex gap-2">
+                                <div className="h-2.5 w-2.5 rounded-full bg-[#FF5F56]/20 border border-[#FF5F56]/50"></div>
+                                <div className="h-2.5 w-2.5 rounded-full bg-[#FFBD2E]/20 border border-[#FFBD2E]/50"></div>
+                                <div className="h-2.5 w-2.5 rounded-full bg-[#27C93F]/20 border border-[#27C93F]/50"></div>
+                              </div>
+                              <div className="flex items-center gap-2 font-mono text-[10px] text-steel/70 tracking-widest">
+                                <TreeStructure size={12} />
+                                <span>forge-workspace</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex flex-1 overflow-hidden">
+                            <div className="w-48 border-r border-[#1A1A1A] bg-[#0A0A0A] p-4 hidden md:block">
+                              <div className="font-mono text-[9px] uppercase tracking-widest text-steel/50 mb-4 font-bold">Explorer</div>
+                              <div className="font-mono text-[10px] text-steel/80 space-y-3">
+                                <div className="flex items-center gap-2"><CaretRight size={10} className="rotate-90 text-steel/50"/> src</div>
+                                <div className="pl-4 flex items-center gap-2"><CaretRight size={10} className="rotate-90 text-steel/50"/> middleware</div>
+                                <div className="pl-8 text-pure-white bg-steel/10 -ml-2 px-2 py-0.5 rounded">AuthMiddleware.tsx</div>
+                                <div className="pl-8 text-steel/50">RateLimit.tsx</div>
+                                <div className="flex items-center gap-2"><CaretRight size={10} className="text-steel/50"/> routes</div>
+                              </div>
+                            </div>
+                            <div className="p-6 font-mono text-[11px] text-steel leading-relaxed flex-1 overflow-hidden relative bg-[#020202]">
+                              <motion.div 
+                                animate={{ y: [0, -5, 0] }} 
+                                transition={{ repeat: Infinity, duration: 6, ease: "easeInOut" }}
+                              >
+                                <pre>
+                                  <code className="text-steel/50">import</code> {'{ useState }'} <code className="text-steel/50">from</code> <code className="text-steel/80">'react'</code>;<br/><br/>
+                                  <code className="text-[#A1A1AA]/40">{'// Forge Block 3: Authentication Lifecycle'}</code><br/>
+                                  <code className="text-steel/50">export default function</code> <code className="text-pure-white">AuthMiddleware</code>() {'{'}<br/>
+                                  {'  '}const [isValid, setIsValid] = useState(false);<br/>
+                                  {'  '}// ...<br/>
+                                  {'}'}
+                                </pre>
+                              </motion.div>
+                            </div>
+                          </div>
+                       </div>
+                    )}
 
-              {/* Panel 3: Contextual Chat */}
-              <div className="h-[25%] p-8 w-full flex items-center justify-center border border-[#313150] bg-[#0A0A0A] rounded-lg mt-8">
-                 <div className="w-full h-full flex flex-col border border-[#313150] bg-[#050505] rounded-lg overflow-hidden">
-                    <div className="border-b border-[#313150] p-4 bg-[#11111A]">
-                       <span className="font-mono text-xs text-pure-white tracking-widest flex items-center gap-2">
-                          <motion.div animate={{ opacity: [1, 0.5, 1] }} transition={{ repeat: Infinity, duration: 2 }}>
-                            <ChatTeardropText size={16} className="text-safety-orange drop-shadow-[0_0_8px_rgba(255,77,0,0.8)]"/>
+                    {/* Panel 3: Contextual Chat */}
+                    {activeFeature.id === 'chat' && (
+                       <div className="w-full h-full flex flex-col border border-[#1A1A1A] bg-[#050505] rounded-xl overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+                          <div className="border-b border-[#1A1A1A] p-4 bg-[#0A0A0A]">
+                             <span className="font-mono text-[10px] text-steel/80 tracking-widest flex items-center gap-2">
+                                <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}>
+                                  <div className="w-1.5 h-1.5 rounded-full bg-safety-orange drop-shadow-[0_0_4px_rgba(255,77,0,0.8)]"></div>
+                                </motion.div>
+                                CONTEXTUAL AI CHAT
+                             </span>
+                          </div>
+                          <div className="flex-1 p-6 font-sans text-sm space-y-8 overflow-hidden relative bg-[#050505]">
+                              <motion.div 
+                                initial={{ opacity: 0, x: -10 }} 
+                                animate={{ opacity: 1, x: 0 }} 
+                                transition={{ delay: 0.2 }}
+                                className="flex gap-4 items-start"
+                              >
+                                <div className="w-8 h-8 rounded border border-[#1A1A1A] bg-[#0A0A0A] flex-shrink-0 flex items-center justify-center font-mono text-[10px] text-steel">U</div>
+                                <div className="text-steel/90 pt-1.5 text-[13px] font-mono">
+                                  What happens if <span className="text-pure-white bg-[#1A1A1A] px-1.5 py-0.5 rounded border border-[#313150]">verifyToken</span> fails?
+                                </div>
+                              </motion.div>
+                              <motion.div 
+                                initial={{ opacity: 0, x: -10 }} 
+                                animate={{ opacity: 1, x: 0 }} 
+                                transition={{ delay: 0.6 }}
+                                className="flex gap-4 items-start"
+                              >
+                                <div className="w-8 h-8 rounded border border-safety-orange/30 bg-safety-orange/10 flex-shrink-0 flex items-center justify-center">
+                                  <motion.div animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.5 }}>
+                                    <div className="w-2 h-2 bg-safety-orange drop-shadow-[0_0_6px_rgba(255,77,0,0.8)]"></div>
+                                  </motion.div>
+                                </div>
+                                <div className="text-steel/80 leading-relaxed pt-1.5 text-[13px] font-mono">
+                                  The component state <span className="bg-[#1A1A1A] border border-[#313150] px-1.5 py-0.5 rounded text-pure-white">isValid</span> remains false, routing the user to <span className="text-pure-white bg-[#1A1A1A] border border-[#313150] px-1.5 py-0.5 rounded">&lt;LoginRedirect /&gt;</span>.<br/><br/>
+                                  <motion.button 
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    className="text-[11px] border border-[#1A1A1A] bg-[#0A0A0A] px-2.5 py-1 rounded-md flex items-center gap-2 mt-2 hover:bg-[#11111A] cursor-pointer transition-colors text-steel shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] outline-none"
+                                  >
+                                    <FileCode size={12}/> Ref: src/utils/auth.ts
+                                  </motion.button>
+                                </div>
+                              </motion.div>
+                          </div>
+                       </div>
+                    )}
+
+                    {/* Panel 4: Roles */}
+                    {activeFeature.id === 'roles' && (
+                       <div className="w-full h-full flex flex-col justify-center gap-0 relative">
+                          
+                          {/* Stacked Card Above (Faded) */}
+                          <motion.div 
+                            initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 0.2 }} transition={{ delay: 0.1 }}
+                            className="relative z-0 flex items-center justify-between p-5 border border-[#1A1A1A] bg-[#050505] rounded-xl w-[90%] mx-auto scale-[0.95] translate-y-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]"
+                          >
+                            <div className="flex items-center gap-4">
+                              <div className="w-9 h-9 rounded bg-[#020202] border border-[#1A1A1A] flex items-center justify-center"></div>
+                              <div className="flex flex-col gap-1">
+                                <span className="font-sans text-sm font-semibold text-transparent bg-steel/20 rounded w-24 h-4"></span>
+                                <span className="font-mono text-[10px] text-transparent bg-steel/10 rounded w-48 h-3"></span>
+                              </div>
+                            </div>
                           </motion.div>
-                          CONTEXTUAL AI CHAT
-                       </span>
-                    </div>
-                    <div className="flex-1 p-6 font-sans text-sm space-y-6 overflow-hidden relative">
-                        <div className="flex gap-3">
-                          <div className="w-8 h-8 rounded bg-[#313150] flex-shrink-0 flex items-center justify-center font-mono text-xs">U</div>
-                          <div className="text-pure-white pt-1">
-                            What happens if <code className="font-mono text-xs text-safety-orange bg-[#1A1A1A] px-1 py-0.5 rounded">verifyToken</code> fails?
-                          </div>
-                        </div>
-                        <div className="flex gap-3">
-                          <div className="w-8 h-8 rounded bg-safety-orange flex-shrink-0 flex items-center justify-center font-mono text-xs text-obsidian font-bold drop-shadow-[0_0_8px_rgba(255,77,0,0.5)]">AI</div>
-                          <div className="text-steel leading-relaxed pt-1">
-                            The component state <code className="font-mono text-xs bg-[#1A1A1A] px-1 py-0.5 rounded">isValid</code> remains false, routing the user to <code className="font-mono text-xs text-[#a6e3a1] bg-[#1A1A1A] px-1 py-0.5 rounded">&lt;LoginRedirect /&gt;</code>.<br/><br/>
-                            <span className="text-xs border border-[#313150] px-2 py-1 rounded flex items-center gap-2 inline-flex mt-2 hover:bg-[#1A1A1A] cursor-pointer transition-colors">
-                              <FileCode size={12}/> Ref: src/utils/auth.ts
-                            </span>
-                          </div>
-                        </div>
-                    </div>
-                 </div>
+
+                          {/* Active Card */}
+                          <motion.div 
+                            initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 300, damping: 25, delay: 0.2 }}
+                            className="relative z-20 flex items-center justify-between p-5 border border-safety-orange bg-[#0A0A0A] rounded-xl shadow-[0_0_40px_rgba(255,77,0,0.05),inset_0_1px_0_rgba(255,255,255,0.05)] w-[100%] mx-auto"
+                          >
+                            <div className="flex items-center gap-4">
+                              <div className="w-9 h-9 rounded bg-[#050505] border border-[#1A1A1A] flex items-center justify-center">
+                                <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}>
+                                  <div className="w-1.5 h-1.5 rounded-full bg-safety-orange drop-shadow-[0_0_6px_rgba(255,77,0,0.8)]"></div>
+                                </motion.div>
+                              </div>
+                              <div className="flex flex-col gap-0.5">
+                                <span className="font-sans text-sm font-semibold text-pure-white tracking-tight">Frontend Path</span>
+                                <span className="font-mono text-[10px] text-steel/60">Skips DB internals, focuses on React state.</span>
+                              </div>
+                            </div>
+                            <span className="font-mono text-[9px] text-safety-orange bg-[#FF4D00]/10 px-2 py-1 rounded font-bold tracking-widest border border-safety-orange/20">ACTIVE</span>
+                          </motion.div>
+
+                          {/* Stacked Card Below */}
+                          <motion.div 
+                            initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 0.6 }} transition={{ delay: 0.3 }}
+                            className="relative z-10 flex items-center justify-between p-5 border border-[#1A1A1A] bg-[#050505] rounded-xl w-[95%] mx-auto -translate-y-2 scale-[0.98] shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]"
+                          >
+                            <div className="flex items-center gap-4">
+                              <div className="w-9 h-9 rounded bg-[#020202] border border-[#1A1A1A] flex items-center justify-center">
+                                <div className="w-1.5 h-1.5 rounded-full bg-steel/30"></div>
+                              </div>
+                              <div className="flex flex-col gap-0.5">
+                                <span className="font-sans text-sm font-semibold text-steel tracking-tight">Backend Path</span>
+                                <span className="font-mono text-[10px] text-steel/40">Focuses on API, Postgres, Auth.</span>
+                              </div>
+                            </div>
+                          </motion.div>
+                       </div>
+                    )}
+
+                  </motion.div>
+                </AnimatePresence>
+
               </div>
-
-              {/* Panel 4: Roles */}
-              <div className="h-[25%] p-8 w-full flex items-center justify-center border border-[#313150] bg-[#0A0A0A] rounded-lg mt-8">
-                 <div className="w-full h-full flex flex-col justify-center gap-6">
-                    <motion.div whileHover={{ x: 10 }} className="flex items-center justify-between p-6 border border-safety-orange bg-safety-orange/5 rounded-lg cursor-pointer group">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded bg-[#11111A] border border-[#313150] flex items-center justify-center group-hover:border-safety-orange transition-colors">
-                          <div className="w-2 h-2 rounded-full bg-safety-orange drop-shadow-[0_0_8px_rgba(255,77,0,0.8)]"></div>
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="font-sans text-lg font-bold text-pure-white group-hover:text-safety-orange transition-colors">Frontend Path</span>
-                          <span className="font-mono text-xs text-steel">Skips DB internals, focuses on React state.</span>
-                        </div>
-                      </div>
-                      <span className="font-mono text-xs text-safety-orange bg-[#1A1A1A] px-2 py-1 rounded">ACTIVE</span>
-                    </motion.div>
-
-                    <motion.div whileHover={{ x: 10 }} className="flex items-center justify-between p-6 border border-[#313150] bg-[#050505] rounded-lg cursor-pointer group hover:border-steel">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded bg-[#11111A] border border-[#313150] flex items-center justify-center">
-                          <div className="w-2 h-2 rounded-full bg-steel"></div>
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="font-sans text-lg font-bold text-pure-white group-hover:text-steel transition-colors">Backend Path</span>
-                          <span className="font-mono text-xs text-steel">Focuses on API, Postgres, Auth.</span>
-                        </div>
-                      </div>
-                    </motion.div>
-                 </div>
-              </div>
-
             </div>
           </div>
+          
         </div>
       </div>
     </section>

@@ -11,9 +11,10 @@ export default function Navigation() {
       initial={{ y: -100, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ type: 'spring', stiffness: 100, damping: 20 }}
-      className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between border-b border-[#1A1A1A] bg-obsidian/80 backdrop-blur-md px-6 py-4"
+      className="fixed top-0 left-0 right-0 z-50 border-b border-[#1A1A1A] bg-obsidian/80 backdrop-blur-md px-6 py-4"
     >
-      <div className="flex items-center gap-2">
+      <div className="mx-auto flex w-full max-w-7xl items-center justify-between">
+        <div className="flex items-center gap-2">
         <Hexagon size={24} weight="fill" className="text-pure-white" />
         <span className="font-sans text-lg font-semibold tracking-tighter text-pure-white">
           Forge
@@ -21,13 +22,13 @@ export default function Navigation() {
       </div>
       <div className="hidden items-center gap-8 md:flex">
         <Magnetic pull={0.1}>
-          <Link href="#news" className="text-sm font-medium text-steel transition-none hover:text-safety-orange px-2 py-1">
-            News
+          <Link href="#architecture" className="text-sm font-medium text-steel transition-none hover:text-safety-orange px-2 py-1">
+            Architecture
           </Link>
         </Magnetic>
         <Magnetic pull={0.1}>
-          <Link href="#storyboards" className="text-sm font-medium text-steel transition-none hover:text-safety-orange px-2 py-1">
-            Storyboards
+          <Link href="#roadmap" className="text-sm font-medium text-steel transition-none hover:text-safety-orange px-2 py-1">
+            Roadmap
           </Link>
         </Magnetic>
         <Magnetic pull={0.1}>
@@ -44,6 +45,7 @@ export default function Navigation() {
             Get Started
           </motion.button>
         </Magnetic>
+      </div>
       </div>
     </motion.nav>
   );

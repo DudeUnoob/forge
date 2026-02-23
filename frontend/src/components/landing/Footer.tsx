@@ -34,8 +34,8 @@ export default function Footer() {
           </div>
           <div className="flex flex-col gap-5">
             <span className="text-pure-white font-bold">Company</span>
-            <a href="#news" className="text-steel hover:text-safety-orange transition-none">News</a>
-            <a href="#careers" className="text-steel hover:text-safety-orange transition-none">Careers</a>
+            <a href="#architecture" className="text-steel hover:text-safety-orange transition-none">Architecture</a>
+            <a href="#roadmap" className="text-steel hover:text-safety-orange transition-none">Roadmap</a>
             <a href="#manifesto" className="text-steel hover:text-safety-orange transition-none">Manifesto</a>
           </div>
           <div className="flex flex-col gap-5">
