@@ -105,11 +105,11 @@ export default function PivotSection() {
             <FadeInStaggerItem className="flex flex-col justify-between col-span-1 border-t border-obsidian/20 md:border-t-0 md:border-l pl-0 md:pl-8 lg:pl-12 pb-4 relative z-10">
               <div>
                 <h3 className="font-mono text-[14px] uppercase tracking-widest text-[#2E2C2B] mb-8 md:mb-12">Pedagogy-First Design</h3>
-                <h4 className="font-sans font-normal text-[20px] leading-[100%] tracking-[-0.02rem] lg:text-[24px] text-obsidian mb-4">Eliminate the vibe coding crisis</h4>
-                <p className="text-pretty font-mono text-[14px] leading-[1.6] md:leading-[1.7] lg:text-[15px] text-obsidian/70 mb-8 max-w-[32ch]">
+                <h4 className="font-sans font-normal text-[16px] leading-[100%] tracking-[-0.02rem] text-[#2E2C2B] mb-4">Eliminate the vibe coding crisis</h4>
+                <p className="text-pretty font-mono text-[14px] leading-[1.6] md:leading-[1.7] text-[#5C5855] mb-8 max-w-[32ch]">
                   Forge forces intentional learning of why systems work, not just how to use them. Reduce onboarding time by 50% while capturing architectural intent natively.
                 </p>
-                <a href="#" className="font-mono text-[11px] uppercase tracking-wider text-obsidian/70 hover:text-safety-orange transition-colors flex items-center gap-2">
+                <a href="#" className="font-mono text-[12px] uppercase tracking-wider text-[#020202] hover:text-safety-orange transition-colors flex items-center gap-2">
                   Learn more about Storyboards &rarr;
                 </a>
               </div>
@@ -128,12 +128,12 @@ export default function PivotSection() {
             {/* Column 3 */}
             <FadeInStaggerItem className="flex flex-col justify-between col-span-1 border-t border-obsidian/20 md:border-t-0 md:border-l pl-0 md:pl-8 lg:pl-12 pb-4 relative z-10">
               <div>
-                <h3 className="font-mono text-[11px] uppercase tracking-widest text-obsidian/70 mb-8 md:mb-12">Across Your Development Stack</h3>
-                <h4 className="font-sans font-normal text-[20px] leading-[100%] tracking-[-0.02rem] lg:text-[24px] text-obsidian mb-4">Role-based learning paths</h4>
-                <p className="text-pretty font-mono text-[14px] leading-[1.6] md:leading-[1.7] lg:text-[15px] text-obsidian/70 mb-8 max-w-[32ch]">
+                <h3 className="font-mono text-[14px] uppercase tracking-widest text-[#2E2C2B] mb-8 md:mb-12">Across Your Development Stack</h3>
+                <h4 className="font-sans font-normal text-[16px] leading-[100%] tracking-[-0.02rem] text-[#2E2C2B] mb-4">Role-based learning paths</h4>
+                <p className="text-pretty font-mono text-[14px] leading-[1.6] md:leading-[1.7] text-[#5C5855] mb-8 max-w-[32ch]">
                   Whether you are frontend, backend, or infra—Forge tailors the storyboard to skip irrelevant internals and focus on the architecture that matters most to your role.
                 </p>
-                <a href="#" className="font-mono text-[11px] uppercase tracking-wider text-obsidian/70 hover:text-safety-orange transition-colors flex items-center gap-2">
+                <a href="#" className="font-mono text-[12px] uppercase tracking-wider text-[#020202] hover:text-safety-orange transition-colors flex items-center gap-2">
                   Explore Learning Paths &rarr;
                 </a>
               </div>
