@@ -7,7 +7,7 @@ const AWS_SERVICES = [
   {
     id: 'bedrock',
     title: 'Amazon Bedrock',
-    description: 'Powers semantic analysis, contextual storyboard generation, and strictly scoped AI chat using Claude 3.5 Sonnet.',
+    description: 'Powers semantic analysis, contextual storyboard generation, and strictly scoped AI chat using Claude 3 Sonnet and Amazon Nova 2',
     tag: 'INTELLIGENCE',
     animation: (
       <div className="flex gap-1.5 h-12 items-end">

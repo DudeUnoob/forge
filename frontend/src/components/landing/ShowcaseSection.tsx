@@ -66,12 +66,19 @@ export default function ShowcaseSection() {
   useEffect(() => {
     gsap.registerPlugin(ScrollTrigger);
 
-    if (!sectionRef.current) return;
+    const section = sectionRef.current;
+    if (!section) return;
 
-    ScrollTrigger.create({
-      trigger: sectionRef.current,
+    const isDesktop = () => typeof window !== 'undefined' && window.innerWidth >= 768;
+
+    if (!isDesktop()) {
+      return;
+    }
+
+    const trigger = ScrollTrigger.create({
+      trigger: section,
       start: 'top top',
-      end: '+=300%', // Scroll for 3 screen heights
+      end: '+=300%',
       pin: true,
       anticipatePin: 1,
       snap: {
@@ -83,50 +90,59 @@ export default function ShowcaseSection() {
         const progress = self.progress;
         let idx = Math.floor(progress * FEATURES.length);
         if (idx >= FEATURES.length) idx = FEATURES.length - 1;
-        
         setPage((prev) => {
-          if (prev[0] !== idx) {
-             return [idx, idx > prev[0] ? 1 : -1];
-          }
+          if (prev[0] !== idx) return [idx, idx > prev[0] ? 1 : -1];
           return prev;
         });
       }
     });
 
+    const onResize = () => {
+      if (!isDesktop()) {
+        trigger?.kill();
+      }
+    };
+    window.addEventListener('resize', onResize);
+
     return () => {
-      ScrollTrigger.getAll().forEach(t => t.kill());
+      window.removeEventListener('resize', onResize);
+      trigger?.kill();
     };
   }, []);
 
   return (
-    <section ref={sectionRef} id="features" className="min-h-[100dvh] bg-obsidian py-24 px-6 relative z-10 overflow-hidden border-t border-[#1A1A1A]">
+    <section ref={sectionRef} id="features" className="bg-obsidian pt-16 pb-20 px-5 sm:pt-20 sm:pb-24 sm:px-6 md:min-h-[100dvh] md:py-24 md:px-6 relative z-10 overflow-hidden border-t border-[#1A1A1A]">
       <div className="mx-auto max-w-7xl h-full flex flex-col" ref={containerRef}>
         
-        <div className="grid grid-cols-1 gap-12 md:gap-16 md:grid-cols-12 h-[600px] items-start pt-8">
+        <div className="grid grid-cols-1 gap-12 md:gap-16 md:grid-cols-12 md:min-h-[520px] md:h-[520px] lg:h-[600px] items-start pt-0 md:pt-8">
           {/* Left Panel: Tabs & Controls */}
-          <div className="col-span-1 md:col-span-5 flex flex-col gap-8 h-full">
-            <h2 className="font-sans text-5xl font-bold tracking-tighter text-pure-white md:text-6xl lg:text-7xl leading-[1.05]">
+          <div className="col-span-1 md:col-span-5 flex flex-col gap-6 sm:gap-6 md:gap-8 md:h-full md:min-h-0">
+            <h2 className="font-sans text-3xl font-bold tracking-tighter text-pure-white sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl leading-[1.1]">
               Learn systems exactly as they were built.
             </h2>
-            <p className="font-sans text-lg text-steel max-w-[38ch]">
+            <p className="font-sans text-base text-steel max-w-[38ch] sm:text-lg leading-relaxed">
               Forge embeds directly into your learning workflow, replacing unstructured docs with guided, block-by-block mastery.
             </p>
 
-            <div className="flex flex-col gap-3 mt-4 relative">
+            <div className="flex flex-col gap-2 sm:gap-3 mt-0 md:mt-4 relative">
               {FEATURES.map((feature, index) => {
                 const isActive = activeIdx === index;
                 return (
                   <button
                     key={feature.id}
                     onClick={() => {
-                      const st = ScrollTrigger.getAll().find(t => t.trigger === sectionRef.current);
+                      const st = typeof window !== 'undefined' && window.innerWidth >= 768
+                        ? ScrollTrigger.getAll().find(t => t.trigger === sectionRef.current)
+                        : null;
                       if (st) {
                         const targetProgress = index / FEATURES.length;
                         const scrollPos = st.start + (st.end - st.start) * targetProgress;
                         window.scrollTo({ top: scrollPos, behavior: 'smooth' });
+                      } else {
+                        setPage([index, index > activeIdx ? 1 : -1]);
                       }
                     }}
-                    className={`relative text-left px-6 py-5 border transition-colors duration-300 rounded-lg overflow-hidden group outline-none ${
+                    className={`relative text-left px-4 py-3 sm:px-5 sm:py-4 md:px-6 md:py-5 border transition-colors duration-300 rounded-lg overflow-hidden group outline-none ${
                       isActive ? 'bg-[#0A0A0A] border-[#313150]' : 'bg-transparent border-[#1A1A1A] hover:bg-[#11111A] hover:border-[#313150]'
                     } active:scale-[0.98] transition-transform`}
                   >
@@ -140,7 +156,7 @@ export default function ShowcaseSection() {
                     )}
                     <div className="flex flex-col gap-2 relative z-10">
                       <div className="flex items-center justify-between">
-                        <span className={`font-mono text-[11px] tracking-widest uppercase transition-colors duration-300 ${isActive ? 'text-safety-orange' : 'text-steel/50 group-hover:text-steel'}`}>
+                        <span className={`font-mono text-[10px] sm:text-[11px] tracking-widest uppercase transition-colors duration-300 ${isActive ? 'text-safety-orange' : 'text-steel/50 group-hover:text-steel'}`}>
                           0{index + 1} - {feature.label}
                         </span>
                       </div>
@@ -152,7 +168,7 @@ export default function ShowcaseSection() {
                             exit={{ height: 0, opacity: 0 }}
                             transition={{ type: "spring", stiffness: 100, damping: 20 }}
                           >
-                            <p className="font-sans text-sm text-steel/80 leading-relaxed mt-2">
+                            <p className="font-sans text-xs sm:text-sm text-steel/80 leading-relaxed mt-1.5 sm:mt-2">
                               {feature.description}
                             </p>
                           </motion.div>
@@ -166,10 +182,10 @@ export default function ShowcaseSection() {
           </div>
 
           {/* Right Panel: Scrolling UI Mockups */}
-          <div className="col-span-1 md:col-span-7 h-[600px] w-full relative">
+          <div className="col-span-1 md:col-span-7 min-h-[360px] w-full relative md:min-h-0 md:h-[520px] lg:h-[600px]">
             {/* Outer wireframe container */}
-            <div className="absolute inset-0 border border-[#1A1A1A] rounded-2xl bg-[#050505] p-2 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.5)]">
-              <div className="w-full h-full border border-[#1A1A1A] rounded-xl overflow-hidden relative bg-[#020202]">
+            <div className="absolute inset-0 border border-[#1A1A1A] rounded-xl sm:rounded-2xl bg-[#050505] p-1.5 sm:p-2 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.5)]">
+              <div className="w-full h-full border border-[#1A1A1A] rounded-lg sm:rounded-xl overflow-hidden relative bg-[#020202]">
                 
                 <AnimatePresence initial={false} custom={direction}>
                   <motion.div
@@ -184,27 +200,27 @@ export default function ShowcaseSection() {
                       opacity: { duration: 0.2 },
                       filter: { duration: 0.3 }
                     }}
-                    className="absolute inset-0 p-4 md:p-10 flex items-center justify-center"
+                    className="absolute inset-0 p-3 sm:p-5 md:p-8 lg:p-10 flex items-center justify-center"
                   >
                     
                     {/* Panel 1: Storyboards */}
                     {activeFeature.id === 'storyboards' && (
-                       <div className="w-full h-full border border-[#1A1A1A] bg-[#0A0A0A] p-8 rounded-xl relative flex flex-col shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
-                          <div className="absolute top-0 left-0 w-1 h-full bg-steel/30"></div>
-                          <div className="mb-4 flex items-center justify-between">
-                            <span className="font-mono text-[10px] text-steel tracking-widest uppercase bg-steel/10 px-3 py-1 rounded">Block 3 of 12</span>
-                            <span className="font-mono text-[10px] text-steel/50 border border-[#1A1A1A] px-2 py-1 rounded">BACKEND PATH</span>
+                       <div className="w-full h-full border border-[#1A1A1A] bg-[#0A0A0A] p-4 sm:p-6 md:p-8 rounded-lg sm:rounded-xl relative flex flex-col shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+                          <div className="absolute top-0 left-0 w-0.5 sm:w-1 h-full bg-steel/30"></div>
+                          <div className="mb-2 sm:mb-4 flex flex-wrap items-center justify-between gap-2">
+                            <span className="font-mono text-[9px] sm:text-[10px] text-steel tracking-widest uppercase bg-steel/10 px-2 py-0.5 sm:px-3 sm:py-1 rounded">Block 3 of 12</span>
+                            <span className="font-mono text-[9px] sm:text-[10px] text-steel/50 border border-[#1A1A1A] px-1.5 py-0.5 sm:px-2 sm:py-1 rounded">BACKEND PATH</span>
                           </div>
-                          <h3 className="font-sans text-2xl font-medium text-pure-white tracking-tight mb-3">Authentication Lifecycle</h3>
-                          <p className="font-sans text-sm text-steel/70 leading-relaxed mb-6 max-w-[90%]">
+                          <h3 className="font-sans text-lg sm:text-xl md:text-2xl font-medium text-pure-white tracking-tight mb-2 sm:mb-3">Authentication Lifecycle</h3>
+                          <p className="font-sans text-xs sm:text-sm text-steel/70 leading-relaxed mb-4 sm:mb-6 max-w-[100%]">
                             Understand how requests traverse the backend and where session data is verified before reaching the core API controllers.
                           </p>
                           
-                          <div className="flex gap-4 mt-auto">
-                            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="bg-pure-white text-obsidian px-5 py-2.5 rounded font-sans text-xs font-semibold transition-colors hover:bg-steel outline-none">
+                          <div className="flex flex-wrap gap-2 sm:gap-4 mt-auto">
+                            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="bg-pure-white text-obsidian px-3 py-2 sm:px-5 sm:py-2.5 rounded font-sans text-[10px] sm:text-xs font-semibold transition-colors hover:bg-steel outline-none">
                               Mark Complete
                             </motion.button>
-                            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="border border-[#313150] text-pure-white px-5 py-2.5 rounded font-sans text-xs transition-colors hover:bg-[#1A1A1A] outline-none">
+                            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="border border-[#313150] text-pure-white px-3 py-2 sm:px-5 sm:py-2.5 rounded font-sans text-[10px] sm:text-xs transition-colors hover:bg-[#1A1A1A] outline-none">
                               View Diagram
                             </motion.button>
                           </div>
@@ -213,37 +229,37 @@ export default function ShowcaseSection() {
 
                     {/* Panel 2: IDE Explorer */}
                     {activeFeature.id === 'ide' && (
-                       <div className="w-full h-full flex flex-col border border-[#1A1A1A] bg-[#050505] rounded-xl overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
-                          <div className="flex items-center justify-between border-b border-[#1A1A1A] bg-[#0A0A0A] px-4 py-3">
-                            <div className="flex items-center gap-4">
-                              <div className="flex gap-2">
-                                <div className="h-2.5 w-2.5 rounded-full bg-[#FF5F56]/20 border border-[#FF5F56]/50"></div>
-                                <div className="h-2.5 w-2.5 rounded-full bg-[#FFBD2E]/20 border border-[#FFBD2E]/50"></div>
-                                <div className="h-2.5 w-2.5 rounded-full bg-[#27C93F]/20 border border-[#27C93F]/50"></div>
+                       <div className="w-full h-full flex flex-col border border-[#1A1A1A] bg-[#050505] rounded-lg sm:rounded-xl overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+                          <div className="flex items-center justify-between border-b border-[#1A1A1A] bg-[#0A0A0A] px-2 py-2 sm:px-4 sm:py-3">
+                            <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+                              <div className="flex gap-1 sm:gap-2 shrink-0">
+                                <div className="h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full bg-[#FF5F56]/20 border border-[#FF5F56]/50"></div>
+                                <div className="h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full bg-[#FFBD2E]/20 border border-[#FFBD2E]/50"></div>
+                                <div className="h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full bg-[#27C93F]/20 border border-[#27C93F]/50"></div>
                               </div>
-                              <div className="flex items-center gap-2 font-mono text-[10px] text-steel/70 tracking-widest">
-                                <TreeStructure size={12} />
+                              <div className="flex items-center gap-1.5 sm:gap-2 font-mono text-[8px] sm:text-[10px] text-steel/70 tracking-widest truncate">
+                                <TreeStructure size={10} className="shrink-0 sm:w-3 sm:h-3" />
                                 <span>forge-workspace</span>
                               </div>
                             </div>
                           </div>
-                          <div className="flex flex-1 overflow-hidden">
-                            <div className="w-48 border-r border-[#1A1A1A] bg-[#0A0A0A] p-4 hidden md:block">
-                              <div className="font-mono text-[9px] uppercase tracking-widest text-steel/50 mb-4 font-bold">Explorer</div>
-                              <div className="font-mono text-[10px] text-steel/80 space-y-3">
-                                <div className="flex items-center gap-2"><CaretRight size={10} className="rotate-90 text-steel/50"/> src</div>
-                                <div className="pl-4 flex items-center gap-2"><CaretRight size={10} className="rotate-90 text-steel/50"/> middleware</div>
-                                <div className="pl-8 text-pure-white bg-steel/10 -ml-2 px-2 py-0.5 rounded">AuthMiddleware.tsx</div>
-                                <div className="pl-8 text-steel/50">RateLimit.tsx</div>
-                                <div className="flex items-center gap-2"><CaretRight size={10} className="text-steel/50"/> routes</div>
+                          <div className="flex flex-1 overflow-hidden min-h-0">
+                            <div className="w-36 sm:w-44 md:w-48 border-r border-[#1A1A1A] bg-[#0A0A0A] p-2 sm:p-3 md:p-4 hidden md:block shrink-0">
+                              <div className="font-mono text-[8px] md:text-[9px] uppercase tracking-widest text-steel/50 mb-2 md:mb-4 font-bold">Explorer</div>
+                              <div className="font-mono text-[9px] md:text-[10px] text-steel/80 space-y-2 md:space-y-3">
+                                <div className="flex items-center gap-1.5"><CaretRight size={8} className="rotate-90 text-steel/50 shrink-0 md:w-2.5 md:h-2.5"/> src</div>
+                                <div className="pl-3 md:pl-4 flex items-center gap-1.5"><CaretRight size={8} className="rotate-90 text-steel/50 shrink-0 md:w-2.5 md:h-2.5"/> middleware</div>
+                                <div className="pl-5 md:pl-8 text-pure-white bg-steel/10 -ml-1 md:-ml-2 px-1.5 py-0.5 rounded text-[9px]">AuthMiddleware.tsx</div>
+                                <div className="pl-5 md:pl-8 text-steel/50 text-[9px]">RateLimit.tsx</div>
+                                <div className="flex items-center gap-1.5"><CaretRight size={8} className="text-steel/50 shrink-0 md:w-2.5 md:h-2.5"/> routes</div>
                               </div>
                             </div>
-                            <div className="p-6 font-mono text-[11px] text-steel leading-relaxed flex-1 overflow-hidden relative bg-[#020202]">
+                            <div className="p-3 sm:p-4 md:p-6 font-mono text-[9px] sm:text-[10px] md:text-[11px] text-steel leading-relaxed flex-1 overflow-auto relative bg-[#020202] min-w-0">
                               <motion.div 
                                 animate={{ y: [0, -5, 0] }} 
                                 transition={{ repeat: Infinity, duration: 6, ease: "easeInOut" }}
                               >
-                                <pre>
+                                <pre className="whitespace-pre-wrap break-words">
                                   <code className="text-steel/50">import</code> {'{ useState }'} <code className="text-steel/50">from</code> <code className="text-steel/80">'react'</code>;<br/><br/>
                                   <code className="text-[#A1A1AA]/40">{'// Forge Block 3: Authentication Lifecycle'}</code><br/>
                                   <code className="text-steel/50">export default function</code> <code className="text-pure-white">AuthMiddleware</code>() {'{'}<br/>
@@ -259,46 +275,46 @@ export default function ShowcaseSection() {
 
                     {/* Panel 3: Contextual Chat */}
                     {activeFeature.id === 'chat' && (
-                       <div className="w-full h-full flex flex-col border border-[#1A1A1A] bg-[#050505] rounded-xl overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
-                          <div className="border-b border-[#1A1A1A] p-4 bg-[#0A0A0A]">
-                             <span className="font-mono text-[10px] text-steel/80 tracking-widest flex items-center gap-2">
+                       <div className="w-full h-full flex flex-col border border-[#1A1A1A] bg-[#050505] rounded-lg sm:rounded-xl overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+                          <div className="border-b border-[#1A1A1A] p-2 sm:p-4 bg-[#0A0A0A]">
+                             <span className="font-mono text-[8px] sm:text-[10px] text-steel/80 tracking-widest flex items-center gap-1.5 sm:gap-2">
                                 <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}>
-                                  <div className="w-1.5 h-1.5 rounded-full bg-safety-orange drop-shadow-[0_0_4px_rgba(255,77,0,0.8)]"></div>
+                                  <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-safety-orange drop-shadow-[0_0_4px_rgba(255,77,0,0.8)]"></div>
                                 </motion.div>
                                 CONTEXTUAL AI CHAT
                              </span>
                           </div>
-                          <div className="flex-1 p-6 font-sans text-sm space-y-8 overflow-hidden relative bg-[#050505]">
+                          <div className="flex-1 p-3 sm:p-4 md:p-6 font-sans text-xs sm:text-sm space-y-4 sm:space-y-6 md:space-y-8 overflow-auto relative bg-[#050505] min-h-0">
                               <motion.div 
                                 initial={{ opacity: 0, x: -10 }} 
                                 animate={{ opacity: 1, x: 0 }} 
                                 transition={{ delay: 0.2 }}
-                                className="flex gap-4 items-start"
+                                className="flex gap-2 sm:gap-4 items-start"
                               >
-                                <div className="w-8 h-8 rounded border border-[#1A1A1A] bg-[#0A0A0A] flex-shrink-0 flex items-center justify-center font-mono text-[10px] text-steel">U</div>
-                                <div className="text-steel/90 pt-1.5 text-[13px] font-mono">
-                                  What happens if <span className="text-pure-white bg-[#1A1A1A] px-1.5 py-0.5 rounded border border-[#313150]">verifyToken</span> fails?
+                                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded border border-[#1A1A1A] bg-[#0A0A0A] flex-shrink-0 flex items-center justify-center font-mono text-[8px] sm:text-[10px] text-steel">U</div>
+                                <div className="text-steel/90 pt-0.5 sm:pt-1.5 text-[11px] sm:text-[13px] font-mono min-w-0 break-words">
+                                  What happens if <span className="text-pure-white bg-[#1A1A1A] px-1 py-0.5 sm:px-1.5 rounded border border-[#313150]">verifyToken</span> fails?
                                 </div>
                               </motion.div>
                               <motion.div 
                                 initial={{ opacity: 0, x: -10 }} 
                                 animate={{ opacity: 1, x: 0 }} 
                                 transition={{ delay: 0.6 }}
-                                className="flex gap-4 items-start"
+                                className="flex gap-2 sm:gap-4 items-start"
                               >
-                                <div className="w-8 h-8 rounded border border-safety-orange/30 bg-safety-orange/10 flex-shrink-0 flex items-center justify-center">
+                                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded border border-safety-orange/30 bg-safety-orange/10 flex-shrink-0 flex items-center justify-center">
                                   <motion.div animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.5 }}>
-                                    <div className="w-2 h-2 bg-safety-orange drop-shadow-[0_0_6px_rgba(255,77,0,0.8)]"></div>
+                                    <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-safety-orange drop-shadow-[0_0_6px_rgba(255,77,0,0.8)]"></div>
                                   </motion.div>
                                 </div>
-                                <div className="text-steel/80 leading-relaxed pt-1.5 text-[13px] font-mono">
-                                  The component state <span className="bg-[#1A1A1A] border border-[#313150] px-1.5 py-0.5 rounded text-pure-white">isValid</span> remains false, routing the user to <span className="text-pure-white bg-[#1A1A1A] border border-[#313150] px-1.5 py-0.5 rounded">&lt;LoginRedirect /&gt;</span>.<br/><br/>
+                                <div className="text-steel/80 leading-relaxed pt-0.5 sm:pt-1.5 text-[11px] sm:text-[13px] font-mono min-w-0 break-words">
+                                  The component state <span className="bg-[#1A1A1A] border border-[#313150] px-1 py-0.5 sm:px-1.5 rounded text-pure-white">isValid</span> remains false, routing the user to <span className="text-pure-white bg-[#1A1A1A] border border-[#313150] px-1 py-0.5 sm:px-1.5 rounded text-[10px] sm:text-xs">&lt;LoginRedirect /&gt;</span>.<br/><br className="hidden sm:block"/>
                                   <motion.button 
                                     whileHover={{ scale: 1.02 }}
                                     whileTap={{ scale: 0.98 }}
-                                    className="text-[11px] border border-[#1A1A1A] bg-[#0A0A0A] px-2.5 py-1 rounded-md flex items-center gap-2 mt-2 hover:bg-[#11111A] cursor-pointer transition-colors text-steel shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] outline-none"
+                                    className="text-[9px] sm:text-[11px] border border-[#1A1A1A] bg-[#0A0A0A] px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md flex items-center gap-1.5 sm:gap-2 mt-1.5 sm:mt-2 hover:bg-[#11111A] cursor-pointer transition-colors text-steel shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] outline-none w-fit"
                                   >
-                                    <FileCode size={12}/> Ref: src/utils/auth.ts
+                                    <FileCode size={10} className="shrink-0 sm:w-3 sm:h-3"/> Ref: src/utils/auth.ts
                                   </motion.button>
                                 </div>
                               </motion.div>
@@ -308,18 +324,18 @@ export default function ShowcaseSection() {
 
                     {/* Panel 4: Roles */}
                     {activeFeature.id === 'roles' && (
-                       <div className="w-full h-full flex flex-col justify-center gap-0 relative">
+                       <div className="w-full h-full flex flex-col justify-center gap-0 relative py-2 sm:py-0">
                           
                           {/* Stacked Card Above (Faded) */}
                           <motion.div 
                             initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 0.2 }} transition={{ delay: 0.1 }}
-                            className="relative z-0 flex items-center justify-between p-5 border border-[#1A1A1A] bg-[#050505] rounded-xl w-[90%] mx-auto scale-[0.95] translate-y-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]"
+                            className="relative z-0 flex items-center justify-between p-3 sm:p-5 border border-[#1A1A1A] bg-[#050505] rounded-lg sm:rounded-xl w-[88%] sm:w-[90%] mx-auto scale-[0.95] translate-y-2 sm:translate-y-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]"
                           >
-                            <div className="flex items-center gap-4">
-                              <div className="w-9 h-9 rounded bg-[#020202] border border-[#1A1A1A] flex items-center justify-center"></div>
-                              <div className="flex flex-col gap-1">
-                                <span className="font-sans text-sm font-semibold text-transparent bg-steel/20 rounded w-24 h-4"></span>
-                                <span className="font-mono text-[10px] text-transparent bg-steel/10 rounded w-48 h-3"></span>
+                            <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+                              <div className="w-7 h-7 sm:w-9 sm:h-9 rounded bg-[#020202] border border-[#1A1A1A] flex items-center justify-center shrink-0"></div>
+                              <div className="flex flex-col gap-0.5 sm:gap-1 min-w-0">
+                                <span className="font-sans text-xs sm:text-sm font-semibold text-transparent bg-steel/20 rounded w-16 sm:w-24 h-3 sm:h-4"></span>
+                                <span className="font-mono text-[9px] sm:text-[10px] text-transparent bg-steel/10 rounded w-32 sm:w-48 h-2.5 sm:h-3"></span>
                               </div>
                             </div>
                           </motion.div>
@@ -327,34 +343,34 @@ export default function ShowcaseSection() {
                           {/* Active Card */}
                           <motion.div 
                             initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 300, damping: 25, delay: 0.2 }}
-                            className="relative z-20 flex items-center justify-between p-5 border border-safety-orange bg-[#0A0A0A] rounded-xl shadow-[0_0_40px_rgba(255,77,0,0.05),inset_0_1px_0_rgba(255,255,255,0.05)] w-[100%] mx-auto"
+                            className="relative z-20 flex items-center justify-between gap-2 p-3 sm:p-5 border border-safety-orange bg-[#0A0A0A] rounded-lg sm:rounded-xl shadow-[0_0_40px_rgba(255,77,0,0.05),inset_0_1px_0_rgba(255,255,255,0.05)] w-full mx-auto"
                           >
-                            <div className="flex items-center gap-4">
-                              <div className="w-9 h-9 rounded bg-[#050505] border border-[#1A1A1A] flex items-center justify-center">
+                            <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+                              <div className="w-7 h-7 sm:w-9 sm:h-9 rounded bg-[#050505] border border-[#1A1A1A] flex items-center justify-center shrink-0">
                                 <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}>
-                                  <div className="w-1.5 h-1.5 rounded-full bg-safety-orange drop-shadow-[0_0_6px_rgba(255,77,0,0.8)]"></div>
+                                  <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-safety-orange drop-shadow-[0_0_6px_rgba(255,77,0,0.8)]"></div>
                                 </motion.div>
                               </div>
-                              <div className="flex flex-col gap-0.5">
-                                <span className="font-sans text-sm font-semibold text-pure-white tracking-tight">Frontend Path</span>
-                                <span className="font-mono text-[10px] text-steel/60">Skips DB internals, focuses on React state.</span>
+                              <div className="flex flex-col gap-0 min-w-0">
+                                <span className="font-sans text-xs sm:text-sm font-semibold text-pure-white tracking-tight">Frontend Path</span>
+                                <span className="font-mono text-[9px] sm:text-[10px] text-steel/60 truncate sm:whitespace-normal">Skips DB internals, focuses on React state.</span>
                               </div>
                             </div>
-                            <span className="font-mono text-[9px] text-safety-orange bg-[#FF4D00]/10 px-2 py-1 rounded font-bold tracking-widest border border-safety-orange/20">ACTIVE</span>
+                            <span className="font-mono text-[8px] sm:text-[9px] text-safety-orange bg-[#FF4D00]/10 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded font-bold tracking-widest border border-safety-orange/20 shrink-0">ACTIVE</span>
                           </motion.div>
 
                           {/* Stacked Card Below */}
                           <motion.div 
                             initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 0.6 }} transition={{ delay: 0.3 }}
-                            className="relative z-10 flex items-center justify-between p-5 border border-[#1A1A1A] bg-[#050505] rounded-xl w-[95%] mx-auto -translate-y-2 scale-[0.98] shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]"
+                            className="relative z-10 flex items-center justify-between p-3 sm:p-5 border border-[#1A1A1A] bg-[#050505] rounded-lg sm:rounded-xl w-[92%] sm:w-[95%] mx-auto -translate-y-1 sm:-translate-y-2 scale-[0.98] shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]"
                           >
-                            <div className="flex items-center gap-4">
-                              <div className="w-9 h-9 rounded bg-[#020202] border border-[#1A1A1A] flex items-center justify-center">
-                                <div className="w-1.5 h-1.5 rounded-full bg-steel/30"></div>
+                            <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+                              <div className="w-7 h-7 sm:w-9 sm:h-9 rounded bg-[#020202] border border-[#1A1A1A] flex items-center justify-center shrink-0">
+                                <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-steel/30"></div>
                               </div>
-                              <div className="flex flex-col gap-0.5">
-                                <span className="font-sans text-sm font-semibold text-steel tracking-tight">Backend Path</span>
-                                <span className="font-mono text-[10px] text-steel/40">Focuses on API, Postgres, Auth.</span>
+                              <div className="flex flex-col gap-0 min-w-0">
+                                <span className="font-sans text-xs sm:text-sm font-semibold text-steel tracking-tight">Backend Path</span>
+                                <span className="font-mono text-[9px] sm:text-[10px] text-steel/40">Focuses on API, Postgres, Auth.</span>
                               </div>
                             </div>
                           </motion.div>

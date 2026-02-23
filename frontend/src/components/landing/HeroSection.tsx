@@ -244,10 +244,10 @@ export default function HeroSection() {
   };
 
   return (
-    <section className="relative flex min-h-[100dvh] w-full items-center px-6 pt-20 overflow-hidden">
-      <div className="mx-auto flex w-full max-w-7xl items-center relative z-10">
+    <section className="relative flex min-h-[100dvh] w-full flex-col items-center justify-center gap-8 px-6 pt-20 pb-12 overflow-hidden md:flex-row md:gap-0">
+      <div className="mx-auto flex w-full max-w-7xl flex-col items-start md:flex-row md:items-center relative z-10">
         <motion.div 
-          className="z-10 flex w-full max-w-2xl flex-col gap-8"
+          className="z-10 flex w-full max-w-2xl shrink-0 flex-col gap-6 sm:gap-8"
           initial="hidden"
         animate="visible"
         variants={{
@@ -258,10 +258,10 @@ export default function HeroSection() {
         }}
       >
         <motion.div variants={staggerVariants} className="flex flex-col gap-4">
-          <h1 className="font-sans text-5xl font-semibold tracking-tighter text-pure-white md:text-7xl">
+          <h1 className="font-sans text-4xl font-semibold tracking-tighter text-pure-white sm:text-5xl md:text-7xl">
             Forge <span className="text-safety-orange">.</span>
           </h1>
-          <p className="max-w-[45ch] font-sans text-lg leading-relaxed text-steel">
+          <p className="max-w-[45ch] font-sans text-base leading-relaxed text-steel sm:text-lg">
             Turn any repository into an interactive learning storyboard.
             Understand codebases step-by-step with AI-powered explanations,
             visual diagrams, and contextual chat.
@@ -317,7 +317,7 @@ export default function HeroSection() {
         )}
       </motion.div>
 
-        <div className="pointer-events-none absolute right-0 top-0 h-full w-full opacity-30 md:w-[600px] md:opacity-100 flex items-center justify-center">
+        <div className="pointer-events-none relative w-full max-w-[420px] shrink-0 self-center opacity-80 md:absolute md:right-0 md:top-0 md:h-full md:max-h-none md:w-[420px] md:max-w-[50%] md:opacity-100 md:flex md:items-center md:justify-center lg:w-[520px] xl:w-[600px]">
           <AgentNetworkVisualizer />
         </div>
       </div>

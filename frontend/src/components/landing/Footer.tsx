@@ -2,7 +2,7 @@ import { Hexagon } from '@phosphor-icons/react/dist/ssr';
 
 export default function Footer() {
   return (
-    <footer className="bg-[#020202] py-24 px-6 relative z-10 border-t border-safety-orange/20">
+    <footer className="bg-[#020202] py-24 px-6 relative z-10">
       <div className="mx-auto max-w-7xl flex flex-col md:flex-row justify-between gap-16">
         
         {/* Left: System Health */}
@@ -25,20 +25,20 @@ export default function Footer() {
         </div>
 
         {/* Right: Sitemap */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-16 font-mono text-xs uppercase tracking-widest">
+        <div className="flex flex-col gap-5 font-mono text-xs uppercase tracking-widest md:ml-auto">
           <div className="flex flex-col gap-5">
             <span className="text-pure-white font-bold">Platform</span>
-            <a href="#" className="text-steel hover:text-safety-orange transition-none">Storyboards</a>
-            <a href="#" className="text-steel hover:text-safety-orange transition-none">Role Paths</a>
-            <a href="#" className="text-steel hover:text-safety-orange transition-none">Integrations</a>
+            <a href="#features" className="text-steel hover:text-safety-orange transition-none">Storyboards</a>
+            <a href="#roadmap" className="text-steel hover:text-safety-orange transition-none">Role Paths</a>
+            <a href="#architecture" className="text-steel hover:text-safety-orange transition-none">Integrations</a>
           </div>
-          <div className="flex flex-col gap-5">
+          <div className="hidden">
             <span className="text-pure-white font-bold">Company</span>
             <a href="#architecture" className="text-steel hover:text-safety-orange transition-none">Architecture</a>
             <a href="#roadmap" className="text-steel hover:text-safety-orange transition-none">Roadmap</a>
             <a href="#manifesto" className="text-steel hover:text-safety-orange transition-none">Manifesto</a>
           </div>
-          <div className="flex flex-col gap-5">
+          <div className="hidden">
             <span className="text-pure-white font-bold">Legal</span>
             <a href="#" className="text-steel hover:text-safety-orange transition-none">Privacy</a>
             <a href="#" className="text-steel hover:text-safety-orange transition-none">Terms</a>

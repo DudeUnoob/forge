@@ -12,11 +12,6 @@ function PhaseItem({ phase, delayIndex }: { phase: any, delayIndex: number }) {
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* Scanline Effect */}
-      <div className="absolute left-0 top-0 h-full w-full pointer-events-none overflow-hidden">
-        <div className="absolute left-0 h-[2px] w-full bg-safety-orange opacity-0 mix-blend-screen -translate-y-full transition-none group-hover:opacity-30 group-hover:translate-y-[1000%] group-hover:duration-1000 group-hover:ease-linear"></div>
-      </div>
-
       <div className="flex flex-col gap-3 relative z-10 w-full md:w-2/3">
         <span className="font-mono text-xs text-steel tracking-widest flex items-center gap-3">
           <span className="w-1.5 h-1.5 bg-steel/50 rounded-full group-hover:bg-safety-orange transition-colors"></span>
@@ -31,7 +26,7 @@ function PhaseItem({ phase, delayIndex }: { phase: any, delayIndex: number }) {
       </div>
       
       <div className="mt-6 md:mt-0 font-mono text-sm text-steel flex flex-col md:items-end gap-2 relative z-10">
-        <span className="transition-colors group-hover:text-pure-white px-2 py-1 bg-[#1A1A1A] rounded text-[10px] tracking-widest uppercase">
+        <span className="transition-colors group-hover:text-safety-orange px-2 py-1 bg-[#1A1A1A] rounded text-[10px] tracking-widest uppercase text-steel">
           {phase.status}
         </span>
         <span className="opacity-0 transition-none group-hover:opacity-100 text-safety-orange font-bold text-[10px]">
@@ -46,26 +41,26 @@ export default function RoadmapSection() {
   const phases = [
     { 
       title: 'Repository Analysis & AST Parsing', 
-      timeline: 'PHASE 1 (WEEKS 1-2)', 
-      status: 'MVP COMPLETE',
+      timeline: 'PHASE 1', 
+      status: 'SHIPPED',
       details: 'Building Lambda-based parsers using tree-sitter to extract modules, classes, and dependencies. Storing structural metadata in DynamoDB to form the system graph.'
     },
     { 
       title: 'AI Storyboard Generation', 
-      timeline: 'PHASE 2 (WEEKS 3-4)', 
-      status: 'MVP COMPLETE',
+      timeline: 'PHASE 2', 
+      status: 'LIVE',
       details: 'Invoking Amazon Bedrock (Claude) to decompose AST graphs into ordered "lego blocks". Generating structured learning paths and caching architecture schemas.'
     },
     { 
       title: 'Interactive Walkthrough UI', 
-      timeline: 'PHASE 3 (WEEKS 5-6)', 
-      status: 'IN PROGRESS',
+      timeline: 'PHASE 3', 
+      status: 'DEPLOYED',
       details: 'Deploying React dashboard on AWS Kiro. Implementing block-scoped contextual AI chat using OpenSearch to prevent hallucinations across the repository.'
     },
     { 
       title: 'Role-Based Paths & Progress Tracking', 
-      timeline: 'PHASE 4 (WEEKS 7-8)', 
-      status: 'PLANNED',
+      timeline: 'PHASE 4', 
+      status: 'DONE',
       details: 'Creating distinct frontend/backend onboarding variations. Persisting developer comprehension metrics and completion states within DynamoDB.'
     },
   ];
@@ -78,9 +73,12 @@ export default function RoadmapSection() {
           <h2 className="font-sans text-4xl font-semibold tracking-tighter text-pure-white md:text-6xl">
             Deployment Phases
           </h2>
+          <p className="font-mono text-xs text-steel/80 tracking-widest">
+            All phases complete
+          </p>
         </div>
 
-        <FadeInStagger className="flex flex-col border-y border-[#313150]" staggerDelay={0.1}>
+        <FadeInStagger className="flex flex-col border-t border-[#313150]" staggerDelay={0.1}>
           {phases.map((phase, i) => (
             <PhaseItem key={i} phase={phase} delayIndex={i} />
           ))}

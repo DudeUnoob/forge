@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 
 export default function AgentNetworkVisualizer() {
   return (
-    <div className="relative flex h-[600px] w-full items-center justify-center pointer-events-none">
+    <div className="relative flex h-[240px] min-h-[200px] w-full max-w-full items-center justify-center pointer-events-none sm:h-[320px] md:h-[420px] lg:h-[560px] xl:h-[600px]">
       {/* Background SVG / Blueprint Framing */}
       <svg className="absolute inset-0 h-full w-full" viewBox="-300 -300 600 600">
         {/* Concentric Squares */}
@@ -78,11 +78,11 @@ export default function AgentNetworkVisualizer() {
 
       {/* Central Rotating Emblem */}
       <motion.div
-        className="absolute z-10 flex h-32 w-32 items-center justify-center rounded-2xl bg-[#080808]/80 backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_0_40px_rgba(0,0,0,0.5)]"
+        className="absolute z-10 flex h-16 w-16 items-center justify-center rounded-xl bg-[#080808]/80 backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_0_40px_rgba(0,0,0,0.5)] sm:h-20 sm:w-20 sm:rounded-2xl md:h-24 md:w-24 lg:h-32 lg:w-32"
         animate={{ rotate: [0, 360] }}
         transition={{ duration: 40, repeat: Infinity, ease: 'linear' }}
       >
-        <svg viewBox="0 0 100 100" className="h-16 w-16 text-pure-white" fill="currentColor">
+        <svg viewBox="0 0 100 100" className="h-8 w-8 text-pure-white sm:h-10 sm:w-10 md:h-12 md:w-12 lg:h-16 lg:w-16" fill="currentColor">
           <path d="M50,15 C52,25 58,35 65,40 C55,42 45,42 35,40 C42,35 48,25 50,15 Z" />
           <path d="M85,50 C75,52 65,58 60,65 C58,55 58,45 60,35 C65,42 75,48 85,50 Z" />
           <path d="M50,85 C48,75 42,65 35,60 C45,58 55,58 65,60 C58,65 52,75 50,85 Z" />
@@ -97,33 +97,33 @@ export default function AgentNetworkVisualizer() {
         </svg>
 
         {/* Decorative corner marks for the emblem box */}
-        <div className="absolute left-2 top-2 h-1 w-1 bg-steel/30" />
-        <div className="absolute right-2 top-2 h-1 w-1 bg-steel/30" />
-        <div className="absolute bottom-2 left-2 h-1 w-1 bg-steel/30" />
-        <div className="absolute bottom-2 right-2 h-1 w-1 bg-steel/30" />
+        <div className="absolute left-1 top-1 h-0.5 w-0.5 bg-steel/30 sm:left-1.5 sm:top-1.5 sm:h-1 sm:w-1 lg:left-2 lg:top-2" />
+        <div className="absolute right-1 top-1 h-0.5 w-0.5 bg-steel/30 sm:right-1.5 sm:top-1.5 sm:h-1 sm:w-1 lg:right-2 lg:top-2" />
+        <div className="absolute bottom-1 left-1 h-0.5 w-0.5 bg-steel/30 sm:bottom-1.5 sm:left-1.5 sm:h-1 sm:w-1 lg:bottom-2 lg:left-2" />
+        <div className="absolute bottom-1 right-1 h-0.5 w-0.5 bg-steel/30 sm:bottom-1.5 sm:right-1.5 sm:h-1 sm:w-1 lg:bottom-2 lg:right-2" />
       </motion.div>
 
       {/* Floating Code Terminal 1 */}
       <motion.div
-        className="absolute left-[-20%] top-[15%] z-20 w-[280px] overflow-hidden rounded-md border border-[#313150]/60 bg-[#0A0A0A]/90 font-mono text-[10px] shadow-2xl backdrop-blur-sm sm:left-0 md:left-8 md:top-1/4 lg:text-xs"
+        className="absolute left-0 top-[5%] z-20 w-[160px] overflow-hidden rounded border border-[#313150]/60 bg-[#0A0A0A]/90 font-mono text-[8px] shadow-2xl backdrop-blur-sm sm:left-2 sm:top-[12%] sm:w-[200px] sm:text-[9px] md:left-4 md:w-[240px] md:top-1/4 lg:left-8 lg:w-[280px] lg:text-xs"
         animate={{ y: [-15, 15, -15], rotate: [-0.5, 0.5, -0.5] }}
         transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
       >
-        <div className="flex items-center gap-1.5 border-b border-[#313150]/60 bg-[#111111]/80 px-3 py-2">
+        <div className="flex items-center gap-1 border-b border-[#313150]/60 bg-[#111111]/80 px-2 py-1.5 sm:gap-1.5 sm:px-3 sm:py-2">
           <div className="h-2 w-2 rounded-full bg-steel/30" />
           <div className="h-2 w-2 rounded-full bg-steel/30" />
           <div className="h-2 w-2 rounded-full bg-steel/30" />
-          <span className="ml-2 text-steel/50">agent_test.sh</span>
+          <span className="ml-1.5 text-steel/50 sm:ml-2">agent_test.sh</span>
         </div>
-        <div className="p-4 leading-relaxed text-steel">
+        <div className="p-2 leading-relaxed text-steel sm:p-3 md:p-4">
           <div className="text-pure-white">run_droid_test() {'{'}</div>
-          <div className="pl-4 text-safety-orange">droid --task "Run tests for $1"</div>
+          <div className="pl-2 text-safety-orange sm:pl-4">droid --task "Run tests for $1"</div>
           <div>{'}'}</div>
-          <br />
+          <br className="hidden sm:block" />
           <div className="text-pure-white">for file in tests:</div>
-          <div className="pl-4">run_droid_test(file)</div>
-          <div className="mt-4 flex justify-end">
-            <span className="rounded-[2px] bg-pure-white px-2 py-0.5 font-sans text-[10px] font-bold text-obsidian">
+          <div className="pl-2 sm:pl-4">run_droid_test(file)</div>
+          <div className="mt-2 flex justify-end sm:mt-4">
+            <span className="rounded-[2px] bg-pure-white px-1.5 py-0.5 font-sans text-[8px] font-bold text-obsidian sm:text-[10px]">
               RUN
             </span>
           </div>
@@ -132,26 +132,26 @@ export default function AgentNetworkVisualizer() {
 
       {/* Floating Code Terminal 2 */}
       <motion.div
-        className="absolute bottom-[10%] right-[-20%] z-20 w-[300px] overflow-hidden rounded-md border border-[#313150]/60 bg-[#0A0A0A]/90 font-mono text-[10px] shadow-2xl backdrop-blur-sm sm:right-0 md:bottom-1/4 md:right-8 lg:text-xs"
+        className="absolute bottom-[5%] right-0 z-20 w-[160px] overflow-hidden rounded border border-[#313150]/60 bg-[#0A0A0A]/90 font-mono text-[8px] shadow-2xl backdrop-blur-sm sm:right-2 sm:bottom-[12%] sm:w-[200px] sm:text-[9px] md:right-4 md:bottom-1/4 md:w-[260px] lg:right-8 lg:w-[300px] lg:text-xs"
         animate={{ y: [15, -15, 15], rotate: [0.5, -0.5, 0.5] }}
         transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
       >
-        <div className="flex items-center gap-1.5 border-b border-[#313150]/60 bg-[#111111]/80 px-3 py-2">
+        <div className="flex items-center gap-1 border-b border-[#313150]/60 bg-[#111111]/80 px-2 py-1.5 sm:gap-1.5 sm:px-3 sm:py-2">
           <div className="h-2 w-2 rounded-full bg-steel/30" />
           <div className="h-2 w-2 rounded-full bg-steel/30" />
           <div className="h-2 w-2 rounded-full bg-steel/30" />
-          <span className="ml-2 text-steel/50">agent_fix.sh</span>
+          <span className="ml-1.5 text-steel/50 sm:ml-2">agent_fix.sh</span>
         </div>
-        <div className="p-4 leading-relaxed text-steel">
+        <div className="p-2 leading-relaxed text-steel sm:p-3 md:p-4">
           <div className="text-pure-white">run_droid_fix() {'{'}</div>
-          <div className="pl-4">echo "Processing $1"</div>
-          <div className="pl-4 text-safety-orange">droid --task "Fix the bug in $1"</div>
+          <div className="pl-2 sm:pl-4">echo "Processing $1"</div>
+          <div className="pl-2 text-safety-orange sm:pl-4">droid --task "Fix the bug in $1"</div>
           <div>{'}'}</div>
-          <br />
+          <br className="hidden sm:block" />
           <div className="text-pure-white">for bug in bugs:</div>
-          <div className="pl-4">run_droid_fix(bug)</div>
-          <div className="mt-4 flex justify-end">
-            <span className="rounded-[2px] bg-pure-white px-2 py-0.5 font-sans text-[10px] font-bold text-obsidian">
+          <div className="pl-2 sm:pl-4">run_droid_fix(bug)</div>
+          <div className="mt-2 flex justify-end sm:mt-4">
+            <span className="rounded-[2px] bg-pure-white px-1.5 py-0.5 font-sans text-[8px] font-bold text-obsidian sm:text-[10px]">
               RUN
             </span>
           </div>
@@ -160,7 +160,7 @@ export default function AgentNetworkVisualizer() {
 
       {/* Interactive Metric Pill 1 */}
       <motion.div
-        className="absolute right-[10%] top-[20%] z-20 flex items-center gap-2 rounded-full border border-[#313150]/60 bg-[#0A0A0A]/80 px-3 py-2 shadow-lg backdrop-blur-sm md:right-1/4 md:top-1/4"
+        className="absolute right-[5%] top-[15%] z-20 flex items-center gap-1.5 rounded-full border border-[#313150]/60 bg-[#0A0A0A]/80 px-2 py-1.5 shadow-lg backdrop-blur-sm sm:right-[8%] sm:top-[18%] sm:gap-2 sm:px-3 sm:py-2 md:right-1/4 md:top-1/4"
         animate={{ x: [-8, 8, -8], y: [-5, 5, -5] }}
         transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
       >
@@ -179,7 +179,7 @@ export default function AgentNetworkVisualizer() {
 
       {/* Interactive Metric Pill 2 */}
       <motion.div
-        className="absolute bottom-[20%] left-[10%] z-20 flex items-center gap-2 rounded-full border border-[#313150]/60 bg-[#0A0A0A]/80 px-3 py-2 shadow-lg backdrop-blur-sm md:bottom-1/4 md:left-1/4"
+        className="absolute bottom-[15%] left-[5%] z-20 flex items-center gap-1.5 rounded-full border border-[#313150]/60 bg-[#0A0A0A]/80 px-2 py-1.5 shadow-lg backdrop-blur-sm sm:bottom-[18%] sm:left-[8%] sm:gap-2 sm:px-3 sm:py-2 md:bottom-1/4 md:left-1/4"
         animate={{ x: [8, -8, 8], y: [5, -5, 5] }}
         transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }}
       >
