@@ -3,14 +3,39 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --radius: .625rem;
+    --accent-100: #ef6f2e;
+    --accent-200: #ee6018;
+    --accent-300: #d15010;
+    --dark-base-primary: #020202;
+    --dark-base-secondary: #101010;
+    --light-base-primary: #eee;
+    --light-base-secondary: #fafafa;
+    --neutral-100: #d6d3d2;
+    --neutral-200: #ccc9c7;
+    --neutral-300: #b8b3b0;
+    --neutral-400: #a49d9a;
+    --neutral-500: #8a8380;
+    --neutral-600: #5c5855;
+    --neutral-700: #4d4947;
+    --neutral-800: #3d3a39;
+    --neutral-900: #2e2c2b;
+    --neutral-1000: #1f1d1c;
+    color-scheme: light dark;
+  }
+
   body {
     overflow-x: hidden;
     overflow-y: auto;
     height: auto;
+    background-color: var(--dark-base-primary);
+    color: var(--neutral-500);
   }
 }
 
 ::selection {
-  background: rgba(255, 77, 0, 0.3);
-  color: #ffffff;
+  background: rgba(239, 111, 46, 0.3);
+  /* accent-100 with opacity */
+  color: var(--light-base-secondary);
 }

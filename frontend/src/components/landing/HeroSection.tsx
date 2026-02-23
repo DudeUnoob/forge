@@ -286,10 +286,10 @@ export default function HeroSection() {
 
             <motion.div variants={staggerVariants} className="max-w-[660px]">
               <div className="flex flex-col gap-y-2.5">
-                <div className="border-[#313150] bg-[#0A0A0A] rounded-lg border">
-                  <div className="border-[#313150] flex gap-3 border-b p-3.5">
+                <div className="border-neutral-800 bg-dark-base-primary rounded-lg border">
+                  <div className="border-neutral-800 flex gap-3 border-b p-3.5">
                     <button type="button" className="cursor-pointer">
-                      <span className="grid h-6 w-fit place-content-center rounded-sm border px-1.5 bg-[#111111] border-[#313150] text-[#E6E6E6]">
+                      <span className="grid h-6 w-fit place-content-center rounded-sm border px-1.5 bg-dark-base-secondary border-neutral-800 text-[#E6E6E6]">
                         <p className="text-pure-white text-pretty font-mono text-[13px] leading-[100%] tracking-[-0.015rem] uppercase">WEB / BROWSER</p>
                       </span>
                     </button>
@@ -301,7 +301,7 @@ export default function HeroSection() {
                   </div>
 
                   <div className="px-3.5 py-5">
-                    <div className="text-pure-white relative flex items-center gap-3 overflow-clip p-3.5 border-[#313150] bg-[#000000] rounded-lg border">
+                    <div className="text-pure-white relative flex items-center gap-3 overflow-clip p-3.5 border-neutral-800 bg-[#000000] rounded-lg border">
                       <span className="text-pretty font-mono text-[15px] tracking-[-0.0175rem] lg:text-[18px] lg:tracking-[-0.02rem] flex-1 flex items-center overflow-x-auto leading-snug !normal-case [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden whitespace-nowrap">
                         <span className="text-safety-orange mr-2">&gt;</span>
                         <input
@@ -318,7 +318,7 @@ export default function HeroSection() {
                       <button
                         onClick={handleIngest}
                         disabled={loading || !gitUrl.trim()}
-                        className="group absolute transition-all duration-200 lg:p-2.5 opacity-100 -m-2 p-2 hover:bg-[#313150]/50 bg-[#0A0A0A] z-50 cursor-pointer top-4 right-3.5 rounded-md border border-[#313150] flex items-center justify-center p-1"
+                        className="group absolute transition-all duration-200 lg:p-2.5 opacity-100 -m-2 p-2 hover:bg-neutral-800/50 bg-dark-base-primary z-50 cursor-pointer top-4 right-3.5 rounded-md border border-neutral-800 flex items-center justify-center p-1"
                         aria-label="Initialize"
                       >
                         {loading ? (
@@ -340,7 +340,7 @@ export default function HeroSection() {
                 )}
 
                 {status && (
-                  <motion.div variants={staggerVariants} className="mt-2 flex flex-col gap-2 border border-[#313150] bg-[#0A0A0A] p-4 rounded-xl">
+                  <motion.div variants={staggerVariants} className="mt-2 flex flex-col gap-2 border border-neutral-800 bg-dark-base-primary p-4 rounded-xl">
                     <div className="flex items-center justify-between font-mono text-[10px] text-steel tracking-widest uppercase">
                       <span>{status}</span>
                       <span>{progress}%</span>

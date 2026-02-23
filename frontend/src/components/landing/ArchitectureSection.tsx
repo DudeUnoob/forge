@@ -32,7 +32,7 @@ const AWS_SERVICES = [
       <div className="flex gap-2 items-center h-12">
         <div className="w-2 h-2 rounded-full bg-steel/30" />
         <div className="h-0.5 w-8 bg-steel/20 relative overflow-hidden">
-          <motion.div 
+          <motion.div
             className="absolute top-0 left-0 h-full w-full bg-safety-orange"
             animate={{ x: ['-100%', '100%'] }}
             transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
@@ -52,9 +52,9 @@ const AWS_SERVICES = [
       <div className="flex flex-col gap-1 h-12 justify-center">
         {[...Array(3)].map((_, i) => (
           <div key={i} className="flex gap-1">
-            <motion.div 
+            <motion.div
               className="h-1.5 w-1.5 bg-steel/30 rounded-sm"
-              animate={{ backgroundColor: ['#3F3F46', '#FF4D00', '#3F3F46'] }}
+              animate={{ backgroundColor: ['#3F3F46', 'var(--accent-100)', '#3F3F46'] }}
               transition={{ duration: 2, repeat: Infinity, delay: i * 0.3 }}
             />
             <div className="h-1.5 w-12 bg-steel/10 rounded-sm" />
@@ -71,7 +71,7 @@ const AWS_SERVICES = [
     tag: 'STORAGE',
     animation: (
       <div className="relative h-12 w-12 flex items-center justify-center border border-steel/20 rounded-md">
-        <motion.div 
+        <motion.div
           className="absolute inset-1 border border-safety-orange/50 rounded-sm"
           animate={{ rotate: 360 }}
           transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
@@ -85,27 +85,27 @@ const AWS_SERVICES = [
 
 export default function ArchitectureSection() {
   return (
-    <section id="architecture" className="bg-obsidian py-32 px-6 relative z-10 border-t border-[#1A1A1A]">
+    <section id="architecture" className="bg-obsidian py-32 px-6 relative z-10 border-t border-dark-base-secondary">
       <div className="mx-auto max-w-7xl">
         <div className="flex flex-col gap-4 mb-16">
           <span className="font-mono text-[10px] uppercase tracking-widest text-safety-orange font-bold">The Infrastructure</span>
-          <h2 className="font-sans text-4xl font-semibold tracking-tighter md:text-6xl" style={{ color: '#EEEEEE' }}>
+          <h2 className="font-sans font-normal text-[40px] leading-[100%] tracking-[-0.16rem] lg:tracking-[-0.18rem] lg:-ml-1 lg:text-6xl 2xl:text-7xl text-balance" style={{ color: '#EEEEEE' }}>
             AWS Native Architecture
           </h2>
         </div>
 
-        <FadeInStagger className="grid grid-cols-1 md:grid-cols-3 gap-px bg-[#313150] border border-[#313150] rounded-xl overflow-hidden" staggerDelay={0.15}>
+        <FadeInStagger className="grid grid-cols-1 md:grid-cols-3 gap-px bg-neutral-800 border border-neutral-800 rounded-xl overflow-hidden" staggerDelay={0.15}>
           {AWS_SERVICES.map((service) => (
-            <FadeInStaggerItem 
-              key={service.id} 
-              className={`group relative bg-[#0A0A0A] p-8 min-h-[280px] flex flex-col justify-between overflow-hidden cursor-pointer ${service.span}`}
+            <FadeInStaggerItem
+              key={service.id}
+              className={`group relative bg-dark-base-primary p-8 min-h-[280px] flex flex-col justify-between overflow-hidden cursor-pointer ${service.span}`}
             >
               {/* Refraction edge */}
               <div className="absolute inset-0 pointer-events-none shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]" />
-              
+
               {/* Gradient border hover effect */}
-              <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100" 
-                   style={{ background: 'radial-gradient(circle at 100% 100%, rgba(255,77,0,0.1) 0%, transparent 60%)' }}>
+              <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+                style={{ background: 'radial-gradient(circle at 100% 100%, rgba(255,77,0,0.1) 0%, transparent 60%)' }}>
               </div>
 
               {/* Top border highlight */}
@@ -121,10 +121,10 @@ export default function ArchitectureSection() {
               </div>
 
               <div className="relative z-10 mt-12">
-                <h3 className="font-sans text-2xl font-medium mb-3 tracking-tight" style={{ color: '#EEEEEE' }}>
+                <h3 className="font-sans font-normal text-[20px] leading-[100%] tracking-[-0.02rem] lg:text-[24px] mb-3" style={{ color: '#EEEEEE' }}>
                   {service.title}
                 </h3>
-                <p className="font-mono text-xs text-steel/80 leading-relaxed max-w-[90%]">
+                <p className="text-pretty font-mono text-[14px] leading-[120%] tracking-[-0.0175rem] lg:text-[16px] lg:tracking-[-0.02rem] text-steel/80 max-w-[90%]">
                   {service.description}
                 </p>
               </div>

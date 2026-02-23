@@ -8,7 +8,7 @@ function PhaseItem({ phase, delayIndex }: { phase: any, delayIndex: number }) {
   const [isHovered, setIsHovered] = useState(false);
 
   return (
-    <FadeInStaggerItem className="group relative flex flex-col md:flex-row md:items-center justify-between border-b border-[#313150] last:border-0 py-10 px-6 cursor-pointer overflow-hidden transition-colors hover:bg-[#11111A]"
+    <FadeInStaggerItem className="group relative flex flex-col md:flex-row md:items-center justify-between border-b border-neutral-800 last:border-0 py-10 px-6 cursor-pointer overflow-hidden transition-colors hover:bg-dark-base-secondary"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
@@ -17,16 +17,16 @@ function PhaseItem({ phase, delayIndex }: { phase: any, delayIndex: number }) {
           <span className="w-1.5 h-1.5 bg-steel/50 rounded-full group-hover:bg-safety-orange transition-colors"></span>
           <TextScramble text={phase.timeline} trigger="controlled" isHovered={isHovered} />
         </span>
-        <h3 className="font-sans text-3xl md:text-4xl font-medium text-pure-white transition-all duration-0 group-hover:font-mono group-hover:font-bold group-hover:text-safety-orange group-hover:tracking-tighter">
+        <h3 className="font-sans font-normal text-[24px] leading-[100%] tracking-[-0.02rem] md:text-[32px] md:tracking-[-0.04rem] text-pure-white transition-all duration-0">
           {phase.title}
         </h3>
-        <p className="font-mono text-xs text-steel/70 leading-relaxed mt-2 hidden md:block opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+        <p className="text-pretty font-mono text-[14px] leading-[120%] tracking-[-0.0175rem] lg:text-[16px] lg:tracking-[-0.02rem] text-steel/70 mt-3 hidden md:block opacity-0 group-hover:opacity-100 transition-opacity duration-300">
           {phase.details}
         </p>
       </div>
-      
+
       <div className="mt-6 md:mt-0 font-mono text-sm text-steel flex flex-col md:items-end gap-2 relative z-10">
-        <span className="transition-colors group-hover:text-safety-orange px-2 py-1 bg-[#1A1A1A] rounded text-[10px] tracking-widest uppercase text-steel">
+        <span className="transition-colors group-hover:text-safety-orange px-2 py-1 bg-dark-base-secondary rounded text-[10px] tracking-widest uppercase text-steel">
           {phase.status}
         </span>
         <span className="opacity-0 transition-none group-hover:opacity-100 text-safety-orange font-bold text-[10px]">
@@ -39,38 +39,38 @@ function PhaseItem({ phase, delayIndex }: { phase: any, delayIndex: number }) {
 
 export default function RoadmapSection() {
   const phases = [
-    { 
-      title: 'Repository Analysis & AST Parsing', 
-      timeline: 'PHASE 1', 
+    {
+      title: 'Repository Analysis & AST Parsing',
+      timeline: 'PHASE 1',
       status: 'SHIPPED',
       details: 'Building Lambda-based parsers using tree-sitter to extract modules, classes, and dependencies. Storing structural metadata in DynamoDB to form the system graph.'
     },
-    { 
-      title: 'AI Storyboard Generation', 
-      timeline: 'PHASE 2', 
+    {
+      title: 'AI Storyboard Generation',
+      timeline: 'PHASE 2',
       status: 'LIVE',
       details: 'Invoking Amazon Bedrock (Claude) to decompose AST graphs into ordered "lego blocks". Generating structured learning paths and caching architecture schemas.'
     },
-    { 
-      title: 'Interactive Walkthrough UI', 
-      timeline: 'PHASE 3', 
+    {
+      title: 'Interactive Walkthrough UI',
+      timeline: 'PHASE 3',
       status: 'DEPLOYED',
       details: 'Deploying React dashboard on AWS Kiro. Implementing block-scoped contextual AI chat using OpenSearch to prevent hallucinations across the repository.'
     },
-    { 
-      title: 'Role-Based Paths & Progress Tracking', 
-      timeline: 'PHASE 4', 
+    {
+      title: 'Role-Based Paths & Progress Tracking',
+      timeline: 'PHASE 4',
       status: 'DONE',
       details: 'Creating distinct frontend/backend onboarding variations. Persisting developer comprehension metrics and completion states within DynamoDB.'
     },
   ];
 
   return (
-    <section id="roadmap" className="bg-obsidian py-32 px-6 relative z-10 border-t border-[#1A1A1A]">
+    <section id="roadmap" className="bg-obsidian py-32 px-6 relative z-10 border-t border-dark-base-secondary">
       <div className="mx-auto max-w-7xl">
         <div className="flex flex-col gap-4 mb-16">
           <span className="font-mono text-[10px] uppercase tracking-widest text-safety-orange font-bold">The Game Plan</span>
-          <h2 className="font-sans text-4xl font-semibold tracking-tighter text-pure-white md:text-6xl">
+          <h2 className="font-sans font-normal text-[40px] leading-[100%] tracking-[-0.16rem] lg:tracking-[-0.18rem] lg:-ml-1 lg:text-6xl 2xl:text-7xl text-balance text-pure-white">
             Deployment Phases
           </h2>
           <p className="font-mono text-xs text-steel/80 tracking-widest">
@@ -78,7 +78,7 @@ export default function RoadmapSection() {
           </p>
         </div>
 
-        <FadeInStagger className="flex flex-col border-t border-[#313150]" staggerDelay={0.1}>
+        <FadeInStagger className="flex flex-col border-t border-neutral-800" staggerDelay={0.1}>
           {phases.map((phase, i) => (
             <PhaseItem key={i} phase={phase} delayIndex={i} />
           ))}

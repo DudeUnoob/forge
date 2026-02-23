@@ -9,10 +9,41 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        obsidian: '#050505',
-        'safety-orange': '#FF4D00',
-        steel: '#A1A1AA',
-        'pure-white': '#FFFFFF',
+        // Semantic aliases
+        obsidian: 'var(--dark-base-primary)',
+        'safety-orange': 'var(--accent-100)',
+        steel: 'var(--neutral-500)',
+        'pure-white': 'var(--light-base-secondary)',
+
+        // Factory AI Palette
+        accent: {
+          100: 'var(--accent-100)',
+          200: 'var(--accent-200)',
+          300: 'var(--accent-300)',
+        },
+        'dark-base': {
+          primary: 'var(--dark-base-primary)',
+          secondary: 'var(--dark-base-secondary)',
+        },
+        'light-base': {
+          primary: 'var(--light-base-primary)',
+          secondary: 'var(--light-base-secondary)',
+        },
+        neutral: {
+          100: 'var(--neutral-100)',
+          200: 'var(--neutral-200)',
+          300: 'var(--neutral-300)',
+          400: 'var(--neutral-400)',
+          500: 'var(--neutral-500)',
+          600: 'var(--neutral-600)',
+          700: 'var(--neutral-700)',
+          800: 'var(--neutral-800)',
+          900: 'var(--neutral-900)',
+          1000: 'var(--neutral-1000)',
+        }
+      },
+      borderRadius: {
+        DEFAULT: 'var(--radius)',
       },
       fontFamily: {
         sans: ['var(--font-geist-sans)', 'Geist', 'sans-serif'],

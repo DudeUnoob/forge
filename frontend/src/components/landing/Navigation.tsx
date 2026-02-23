@@ -7,7 +7,7 @@ import Magnetic from '@/components/animations/Magnetic';
 
 export default function Navigation() {
   return (
-    <header className="fixed inset-x-0 top-0 z-50 px-4 md:border-b-0 lg:px-9 bg-[#0A0A0A]/80 backdrop-blur-md">
+    <header className="fixed inset-x-0 top-0 z-50 px-4 md:border-b-0 lg:px-9 bg-dark-base-primary/80 backdrop-blur-md">
       <div className="mx-auto flex items-center justify-between py-5 max-w-[1400px]">
         {/* Logo Section */}
         <a href="/" className="z-50 flex items-center gap-2">
@@ -60,7 +60,7 @@ export default function Navigation() {
             <Magnetic pull={0.1}>
               <Link
                 href="#get-started"
-                className="group relative w-max cursor-pointer items-center justify-center border transition-colors duration-150 will-change-transform bg-pure-white hover:bg-[#111111] focus-visible:bg-[#111111] text-[#111111] hover:text-pure-white focus-visible:text-pure-white hover:border-[#313150] focus-visible:border-[#313150] overflow-clip rounded-sm border-transparent h-[25px] px-3 hidden md:flex"
+                className="group relative w-max cursor-pointer items-center justify-center border transition-colors duration-150 will-change-transform bg-pure-white hover:bg-dark-base-secondary focus-visible:bg-dark-base-secondary text-dark-base-secondary hover:text-pure-white focus-visible:text-pure-white hover:border-neutral-800 focus-visible:border-neutral-800 overflow-clip rounded-sm border-transparent h-[25px] px-3 hidden md:flex"
               >
                 <span className="relative z-10 flex items-center uppercase">
                   <p className="text-pretty font-mono text-[12px] leading-[100%] tracking-[-0.015rem] uppercase">Get Started</p>
@@ -69,7 +69,7 @@ export default function Navigation() {
                   <div
                     className="group-hover:running absolute inset-0 animate-[slidePattern_2000ms_linear_infinite] opacity-100"
                     style={{
-                      backgroundImage: 'repeating-linear-gradient(45deg, transparent 0px, transparent 2px, #313150 2px, #313150 3px, transparent 3px, transparent 5px)',
+                      backgroundImage: 'repeating-linear-gradient(45deg, transparent 0px, transparent 2px, var(--neutral-800) 2px, var(--neutral-800) 3px, transparent 3px, transparent 5px)',
                       backgroundSize: '7.07px 7.07px'
                     }}
                   />

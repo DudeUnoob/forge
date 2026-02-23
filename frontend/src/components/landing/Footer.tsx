@@ -2,7 +2,7 @@ import { Hexagon } from '@phosphor-icons/react/dist/ssr';
 
 export default function Footer() {
   return (
-    <footer className="bg-[#020202] py-24 px-6 relative z-10">
+    <footer className="bg-dark-base-primary py-24 px-6 relative z-10">
       <div className="mx-auto max-w-7xl flex flex-col md:flex-row justify-between gap-16">
 
         {/* Left: System Health */}

@@ -23,9 +23,9 @@ export default function AgentNetworkVisualizer() {
       <svg className="absolute inset-0 h-full w-full" viewBox="-300 -300 600 600">
         <defs>
           <linearGradient id="scannerGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#FF4D00" stopOpacity="0" />
-            <stop offset="50%" stopColor="#FF4D00" stopOpacity="0.8" />
-            <stop offset="100%" stopColor="#FF4D00" stopOpacity="0" />
+            <stop offset="0%" stopColor="var(--accent-100)" stopOpacity="0" />
+            <stop offset="50%" stopColor="var(--accent-100)" stopOpacity="0.8" />
+            <stop offset="100%" stopColor="var(--accent-100)" stopOpacity="0" />
           </linearGradient>
         </defs>
 
@@ -135,7 +135,7 @@ export default function AgentNetworkVisualizer() {
           <motion.path
             d="M -250 150 C -150 150, -80 0, 0 0"
             fill="none"
-            stroke="#FF4D00"
+            stroke="var(--accent-100)"
             strokeWidth="1.5"
             strokeDasharray="5 5"
             animate={{
@@ -150,7 +150,7 @@ export default function AgentNetworkVisualizer() {
           <motion.path
             d="M 260 60 C 160 60, 100 0, 0 0"
             fill="none"
-            stroke="#FF4D00"
+            stroke="var(--accent-100)"
             strokeWidth="1.5"
             strokeDasharray="5 5"
             animate={{
@@ -166,21 +166,21 @@ export default function AgentNetworkVisualizer() {
           {/* Nodes */}
           <circle cx="-300" cy="-80" r="3" fill="#A1A1AA" opacity="0.5" />
           <circle cx="-280" cy="40" r="3" fill="#A1A1AA" opacity="0.5" />
-          <motion.circle cx="-250" cy="150" r="3" fill="#FF4D00" animate={{ opacity: frame >= 1 ? 0.8 : 0.3 }} transition={{ duration: 0.8 }} />
+          <motion.circle cx="-250" cy="150" r="3" fill="var(--accent-100)" animate={{ opacity: frame >= 1 ? 0.8 : 0.3 }} transition={{ duration: 0.8 }} />
           <circle cx="-160" cy="-80" r="3" fill="#A1A1AA" opacity="0.5" />
-          <motion.circle cx="-100" cy="150" r="3" fill="#FF4D00" animate={{ opacity: frame >= 1 ? 0.8 : 0.3 }} transition={{ duration: 0.8 }} />
+          <motion.circle cx="-100" cy="150" r="3" fill="var(--accent-100)" animate={{ opacity: frame >= 1 ? 0.8 : 0.3 }} transition={{ duration: 0.8 }} />
 
           <circle cx="300" cy="-120" r="3" fill="#A1A1AA" opacity="0.5" />
-          <motion.circle cx="260" cy="60" r="3" fill="#FF4D00" animate={{ opacity: frame >= 1 ? 0.8 : 0.3 }} transition={{ duration: 0.8 }} />
+          <motion.circle cx="260" cy="60" r="3" fill="var(--accent-100)" animate={{ opacity: frame >= 1 ? 0.8 : 0.3 }} transition={{ duration: 0.8 }} />
           <circle cx="280" cy="180" r="3" fill="#A1A1AA" opacity="0.5" />
           <circle cx="150" cy="-120" r="3" fill="#A1A1AA" opacity="0.5" />
-          <motion.circle cx="120" cy="60" r="3" fill="#FF4D00" animate={{ opacity: frame >= 1 ? 0.8 : 0.3 }} transition={{ duration: 0.8 }} />
+          <motion.circle cx="120" cy="60" r="3" fill="var(--accent-100)" animate={{ opacity: frame >= 1 ? 0.8 : 0.3 }} transition={{ duration: 0.8 }} />
 
           {/* Dynamic Traveling Particles (Only in frame 1 & 2) */}
           <motion.circle
             r="2"
-            fill="#FF4D00"
-            style={{ filter: "drop-shadow(0 0 6px #FF4D00)" }}
+            fill="var(--accent-100)"
+            style={{ filter: "drop-shadow(0 0 6px var(--accent-100))" }}
             animate={{
               cx: [-250, 0],
               cy: [150, 0],
@@ -194,8 +194,8 @@ export default function AgentNetworkVisualizer() {
           />
           <motion.circle
             r="2"
-            fill="#FF4D00"
-            style={{ filter: "drop-shadow(0 0 6px #FF4D00)" }}
+            fill="var(--accent-100)"
+            style={{ filter: "drop-shadow(0 0 6px var(--accent-100))" }}
             animate={{
               cx: [260, 0],
               cy: [60, 0],
@@ -212,7 +212,7 @@ export default function AgentNetworkVisualizer() {
 
       {/* Central Rotating Emblem */}
       <motion.div
-        className="absolute z-10 flex items-center justify-center bg-[#080808]/80 backdrop-blur-md"
+        className="absolute z-10 flex items-center justify-center bg-dark-base-primary/80 backdrop-blur-md"
         animate={{
           rotate: [0, 360],
           scale: frame === 3 ? 0.85 : 1, // Shrink slightly in frame 3 to yield focus
@@ -243,7 +243,7 @@ export default function AgentNetworkVisualizer() {
           <path d="M75,75 C68,68 58,62 50,65 C55,58 55,48 50,40 C58,48 68,55 75,60 C70,65 70,70 75,75 Z" opacity="0.6" />
           <path d="M25,75 C32,68 42,62 40,50 C45,58 55,58 60,50 C52,58 42,65 35,70 C30,65 25,65 25,75 Z" opacity="0.6" />
           <path d="M25,25 C32,32 42,38 50,35 C45,42 45,52 50,60 C42,52 32,45 25,40 C30,35 30,30 25,25 Z" opacity="0.6" />
-          <circle cx="50" cy="50" r="10" fill="#050505" />
+          <circle cx="50" cy="50" r="10" fill="var(--dark-base-primary)" />
           <circle cx="50" cy="50" r="6" fill="currentColor" />
         </svg>
 
@@ -265,7 +265,7 @@ export default function AgentNetworkVisualizer() {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.4 } }}
             transition={spring}
-            className="absolute top-[20%] z-20 flex items-center gap-2 rounded-full border border-steel/20 bg-[#0A0A0A]/80 px-4 py-2 shadow-lg backdrop-blur-sm"
+            className="absolute top-[20%] z-20 flex items-center gap-2 rounded-full border border-steel/20 bg-dark-base-primary/80 px-4 py-2 shadow-lg backdrop-blur-sm"
           >
             <div className="h-2 w-2 rounded-full bg-steel animate-pulse" />
             <span className="font-mono text-[9px] sm:text-[11px] text-steel tracking-widest uppercase">
@@ -282,9 +282,9 @@ export default function AgentNetworkVisualizer() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20, transition: { duration: 0.4 } }}
             transition={spring}
-            className="absolute top-[35%] right-[5%] z-20 w-[150px] overflow-hidden rounded-xl border border-[#313150]/60 bg-[#0A0A0A]/90 font-mono text-[8px] shadow-2xl backdrop-blur-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:w-[180px] md:w-[220px] lg:text-[10px]"
+            className="absolute top-[35%] right-[5%] z-20 w-[150px] overflow-hidden rounded-xl border border-neutral-800/60 bg-dark-base-primary/90 font-mono text-[8px] shadow-2xl backdrop-blur-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:w-[180px] md:w-[220px] lg:text-[10px]"
           >
-            <div className="flex items-center gap-1.5 border-b border-[#313150]/60 bg-[#111111]/80 px-3 py-2">
+            <div className="flex items-center gap-1.5 border-b border-neutral-800/60 bg-dark-base-secondary/80 px-3 py-2">
               <motion.div
                 animate={{ opacity: [1, 0.2, 1] }}
                 transition={{ duration: 1.5, repeat: Infinity }}
@@ -329,9 +329,9 @@ export default function AgentNetworkVisualizer() {
                 y: { duration: 8, repeat: Infinity, ease: "easeInOut" },
                 rotate: { duration: 8, repeat: Infinity, ease: "easeInOut" },
               }}
-              className="absolute left-[2%] top-[15%] z-20 w-[160px] overflow-hidden rounded-xl border border-[#313150]/60 bg-[#0A0A0A]/95 font-mono text-[8px] shadow-2xl backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:left-[6%] sm:w-[220px] sm:text-[9px] md:left-[10%] md:w-[260px] lg:w-[280px] lg:text-xs"
+              className="absolute left-[2%] top-[15%] z-20 w-[160px] overflow-hidden rounded-xl border border-neutral-800/60 bg-dark-base-primary/95 font-mono text-[8px] shadow-2xl backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:left-[6%] sm:w-[220px] sm:text-[9px] md:left-[10%] md:w-[260px] lg:w-[280px] lg:text-xs"
             >
-              <div className="flex items-center gap-1.5 border-b border-[#313150]/60 bg-[#111111]/80 px-3 py-2">
+              <div className="flex items-center gap-1.5 border-b border-neutral-800/60 bg-dark-base-secondary/80 px-3 py-2">
                 <div className="h-2 w-2 rounded-full bg-steel/30" />
                 <div className="h-2 w-2 rounded-full bg-steel/30" />
                 <div className="h-2 w-2 rounded-full bg-steel/30" />
@@ -369,9 +369,9 @@ export default function AgentNetworkVisualizer() {
                 y: { duration: 9, repeat: Infinity, ease: "easeInOut", delay: 0.2 },
                 rotate: { duration: 9, repeat: Infinity, ease: "easeInOut", delay: 0.2 },
               }}
-              className="absolute bottom-[10%] right-[2%] z-20 w-[160px] overflow-hidden rounded-xl border border-[#313150]/60 bg-[#0A0A0A]/95 font-mono text-[8px] shadow-2xl backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:right-[6%] sm:w-[220px] sm:text-[9px] md:right-[10%] md:w-[260px] lg:w-[280px] lg:text-xs"
+              className="absolute bottom-[10%] right-[2%] z-20 w-[160px] overflow-hidden rounded-xl border border-neutral-800/60 bg-dark-base-primary/95 font-mono text-[8px] shadow-2xl backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:right-[6%] sm:w-[220px] sm:text-[9px] md:right-[10%] md:w-[260px] lg:w-[280px] lg:text-xs"
             >
-              <div className="flex items-center gap-1.5 border-b border-[#313150]/60 bg-[#111111]/80 px-3 py-2">
+              <div className="flex items-center gap-1.5 border-b border-neutral-800/60 bg-dark-base-secondary/80 px-3 py-2">
                 <div className="h-2 w-2 rounded-full bg-steel/30" />
                 <div className="h-2 w-2 rounded-full bg-steel/30" />
                 <div className="h-2 w-2 rounded-full bg-steel/30" />
@@ -406,7 +406,7 @@ export default function AgentNetworkVisualizer() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, transition: { duration: 0.3 } }}
               transition={spring}
-              className="absolute top-[5%] right-[2%] sm:right-[5%] max-w-[200px] z-20 rounded-xl border border-[#313150]/60 bg-[#080808]/95 font-mono text-[7px] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-md sm:text-[9px] p-4 text-steel"
+              className="absolute top-[5%] right-[2%] sm:right-[5%] max-w-[200px] z-20 rounded-xl border border-neutral-800/60 bg-dark-base-primary/95 font-mono text-[7px] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-md sm:text-[9px] p-4 text-steel"
             >
               <div className="flex gap-1.5 mb-3">
                 <div className="w-2 h-2 rounded-full bg-steel/30" />
@@ -429,16 +429,16 @@ export default function AgentNetworkVisualizer() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20, transition: { duration: 0.3 } }}
               transition={{ ...spring, delay: 0.1 }}
-              className="absolute top-[25%] left-[8%] sm:left-[15%] z-20 flex items-center gap-3 rounded-full border border-[#313150]/60 bg-[#0A0A0A]/90 px-4 py-2 shadow-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-md w-[140px] sm:w-[180px]"
+              className="absolute top-[25%] left-[8%] sm:left-[15%] z-20 flex items-center gap-3 rounded-full border border-neutral-800/60 bg-dark-base-primary/90 px-4 py-2 shadow-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-md w-[140px] sm:w-[180px]"
             >
               <div className="flex gap-1.5">
                 <div className="h-2 w-2 rounded-full bg-steel/40" />
                 <div className="h-2 w-2 rounded-full bg-steel/20" />
               </div>
-              <div className="relative flex-1 h-[3px] bg-steel/10 rounded-full mx-1 shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)] border border-[#313150]/40 overflow-hidden">
+              <div className="relative flex-1 h-[3px] bg-steel/10 rounded-full mx-1 shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)] border border-neutral-800/40 overflow-hidden">
                 <motion.div className="absolute right-2 top-1/2 -translate-y-1/2 h-1.5 w-6 rounded-full bg-steel/50" />
                 <motion.div
-                  className="absolute left-0 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-safety-orange shadow-[0_0_8px_#FF4D00]"
+                  className="absolute left-0 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-safety-orange shadow-[0_0_8px_var(--accent-100)]"
                   animate={{ left: ["0%", "75%", "0%"] }}
                   transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
                 />
@@ -451,13 +451,13 @@ export default function AgentNetworkVisualizer() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20, transition: { duration: 0.3 } }}
               transition={{ ...spring, delay: 0.25 }}
-              className="absolute top-[45%] right-[15%] sm:right-[25%] z-20 flex items-center gap-3 rounded-full border border-[#313150]/60 bg-[#0A0A0A]/90 px-4 py-2 shadow-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-md w-[130px] sm:w-[160px]"
+              className="absolute top-[45%] right-[15%] sm:right-[25%] z-20 flex items-center gap-3 rounded-full border border-neutral-800/60 bg-dark-base-primary/90 px-4 py-2 shadow-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-md w-[130px] sm:w-[160px]"
             >
               <div className="flex gap-1.5">
                 <div className="h-2 w-2 rounded-full bg-steel/20" />
                 <div className="h-2 w-2 rounded-full bg-steel/40" />
               </div>
-              <div className="relative flex-1 h-[3px] bg-steel/10 rounded-full mx-1 shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)] border border-[#313150]/40">
+              <div className="relative flex-1 h-[3px] bg-steel/10 rounded-full mx-1 shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)] border border-neutral-800/40">
                 <motion.div className="absolute right-4 top-1/2 -translate-y-1/2 h-1.5 w-8 rounded-full bg-steel/40" />
                 {/* Hollow white ring around orange inner like in image */}
                 <motion.div
@@ -474,15 +474,15 @@ export default function AgentNetworkVisualizer() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20, transition: { duration: 0.3 } }}
               transition={{ ...spring, delay: 0.4 }}
-              className="absolute bottom-[20%] left-[10%] sm:left-[20%] z-20 flex items-center gap-3 rounded-full border border-[#313150]/60 bg-[#0A0A0A]/90 px-4 py-2 shadow-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-md w-[150px] sm:w-[200px]"
+              className="absolute bottom-[20%] left-[10%] sm:left-[20%] z-20 flex items-center gap-3 rounded-full border border-neutral-800/60 bg-dark-base-primary/90 px-4 py-2 shadow-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-md w-[150px] sm:w-[200px]"
             >
               <div className="flex gap-1.5">
                 <div className="h-2 w-2 rounded-full bg-steel/40" />
                 <div className="h-2 w-4 rounded-full bg-steel/20" />
               </div>
-              <div className="relative flex-1 h-[3px] bg-steel/10 rounded-full mx-1 shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)] border border-[#313150]/40">
+              <div className="relative flex-1 h-[3px] bg-steel/10 rounded-full mx-1 shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)] border border-neutral-800/40">
                 <motion.div
-                  className="absolute left-[30%] top-1/2 -translate-y-1/2 h-[9px] w-[9px] rounded-full bg-safety-orange shadow-[0_0_8px_#FF4D00]"
+                  className="absolute left-[30%] top-1/2 -translate-y-1/2 h-[9px] w-[9px] rounded-full bg-safety-orange shadow-[0_0_8px_var(--accent-100)]"
                   animate={{ left: ["30%", "90%", "30%"] }}
                   transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
                 />
