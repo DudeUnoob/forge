@@ -131,7 +131,7 @@ export default function ShowcaseSection() {
         <div className="grid grid-cols-1 gap-12 md:gap-16 md:grid-cols-12 md:min-h-[520px] md:h-[520px] lg:h-[600px] items-start pt-0 md:pt-8">
           {/* Left Panel: Tabs & Controls */}
           <div className="col-span-1 md:col-span-5 flex flex-col gap-6 sm:gap-6 md:gap-8 md:h-full md:min-h-0">
-            <h2 className="text-pure-white font-sans font-normal text-[40px] leading-[100%] tracking-[-0.16rem] lg:tracking-[-0.18rem] lg:-ml-1 lg:text-6xl 2xl:text-7xl text-balance">
+            <h2 className="font-sans font-normal text-[40px] leading-[100%] tracking-[-0.16rem] lg:tracking-[-0.18rem] lg:-ml-1 lg:text-6xl 2xl:text-7xl text-balance" style={{ color: '#EEEEEE' }}>
               Learn systems exactly as they were built.
             </h2>
             <div className="flex flex-col gap-y-4 lg:max-w-[600px] lg:gap-y-6">

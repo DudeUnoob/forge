@@ -89,7 +89,7 @@ export default function ArchitectureSection() {
       <div className="mx-auto max-w-7xl">
         <div className="flex flex-col gap-4 mb-16">
           <span className="font-mono text-[10px] uppercase tracking-widest text-safety-orange font-bold">The Infrastructure</span>
-          <h2 className="font-sans text-4xl font-semibold tracking-tighter text-pure-white md:text-6xl">
+          <h2 className="font-sans text-4xl font-semibold tracking-tighter md:text-6xl" style={{ color: '#EEEEEE' }}>
             AWS Native Architecture
           </h2>
         </div>
@@ -121,7 +121,7 @@ export default function ArchitectureSection() {
               </div>
 
               <div className="relative z-10 mt-12">
-                <h3 className="font-sans text-2xl font-medium text-pure-white mb-3 tracking-tight">
+                <h3 className="font-sans text-2xl font-medium mb-3 tracking-tight" style={{ color: '#EEEEEE' }}>
                   {service.title}
                 </h3>
                 <p className="font-mono text-xs text-steel/80 leading-relaxed max-w-[90%]">

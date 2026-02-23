@@ -244,12 +244,12 @@ export default function HeroSection() {
   };
 
   return (
-    <section className="relative flex min-h-[100dvh] w-full flex-col px-6 pt-32 pb-12 overflow-hidden md:justify-center lg:pt-0">
-      <div className="mx-auto grid w-full max-w-[1400px] grid-cols-1 gap-12 lg:grid-cols-[1fr_1.1fr] lg:gap-8 relative z-10 items-start">
+    <main className="flex-1 mt-[80px]">
+      <div className="relative mx-auto grid h-auto w-full grid-cols-4 gap-x-4 lg:grid-cols-12 lg:gap-x-6 my-20 bg-transparent px-4 first:mt-4 lg:mt-20 lg:px-9 first:lg:mt-10 lg:mb-30 lg:h-[calc(100dvh-160px)] lg:max-h-[725px] lg:min-h-[620px] xl:mb-22">
 
-        {/* Left Column Text & CTAs */}
+        {/* Left Column (Text & Input) */}
         <motion.div
-          className="z-10 flex w-full flex-col lg:pt-[15vh]"
+          className="z-10 col-span-4 flex max-w-[650px] flex-col justify-between lg:col-span-6 lg:max-w-none"
           initial="hidden"
           animate="visible"
           variants={{
@@ -259,108 +259,156 @@ export default function HeroSection() {
             },
           }}
         >
-          {/* Top Label */}
-          <motion.div variants={staggerVariants} className="mb-6 flex items-center gap-3">
-            <div className="h-2 w-2 rounded-full bg-safety-orange shadow-[0_0_8px_rgba(255,77,0,0.6)]" />
-            <span className="font-mono text-[10px] sm:text-xs font-medium tracking-[0.2em] text-steel">
-              VISION
-            </span>
-          </motion.div>
+          <div className="flex flex-col gap-y-6 lg:gap-y-8">
+            <motion.div variants={staggerVariants} className="text-pretty font-mono text-[15px] leading-[100%] tracking-[-0.0175rem] inline-flex items-center gap-3 pt-4 uppercase">
+              <div className="size-2.5 transform-gpu rounded-full border bg-safety-orange border-transparent shadow-[0_0_8px_rgba(255,77,0,0.6)]"></div>
+              <p className="whitespace-nowrap text-steel text-pretty font-mono text-[13px] leading-[100%] tracking-[-0.015rem] uppercase">Vision</p>
+            </motion.div>
 
-          <motion.div variants={staggerVariants} className="flex flex-col gap-6">
-            <h1 className="text-pure-white font-sans font-normal text-[40px] leading-[100%] tracking-[-0.16rem] lg:tracking-[-0.18rem] lg:-ml-1 lg:text-6xl 2xl:text-7xl">
+            <motion.h1
+              variants={staggerVariants}
+              className="font-normal text-[44px] leading-[100%] tracking-[-0.17rem] lg:tracking-[-0.20rem] lg:-ml-1.5 lg:text-[66px] 2xl:text-[80px]"
+              style={{ color: '#EEEEEE' }}
+              aria-label="Forge."
+            >
               Forge<span className="text-safety-orange">.</span>
-            </h1>
+            </motion.h1>
 
-            <div className="flex flex-col gap-y-4 lg:max-w-[600px] lg:gap-y-6">
-              <p className="font-mono text-[16px] leading-[120%] tracking-[-0.02rem] lg:text-[18px] lg:tracking-[-0.0225rem] text-steel text-balance">
+            <motion.div variants={staggerVariants} className="flex flex-col gap-y-4 lg:max-w-[660px] lg:gap-y-6">
+              <p className="font-mono text-[18px] leading-[120%] tracking-[-0.0225rem] lg:text-[20px] lg:tracking-[-0.025rem] text-steel text-balance">
                 Turn any repository into an interactive learning storyboard.
               </p>
-              <p className="font-mono text-[16px] leading-[120%] tracking-[-0.02rem] lg:text-[18px] lg:tracking-[-0.0225rem] text-steel text-balance">
+              <p className="font-mono text-[18px] leading-[120%] tracking-[-0.0225rem] lg:text-[20px] lg:tracking-[-0.025rem] text-steel text-balance">
                 Understand codebases step-by-step with AI-powered explanations,
                 visual diagrams, and contextual chat.
               </p>
-            </div>
-          </motion.div>
+            </motion.div>
 
-          {/* Terminal Input Element */}
-          <motion.div variants={staggerVariants} className="mt-10 sm:mt-12 w-full max-w-[540px]">
-            <div className="flex flex-col overflow-hidden rounded-xl border border-[#313150]/60 bg-[#0A0A0A]/40 backdrop-blur-md">
-              <div className="flex items-center gap-4 border-b border-[#313150]/60 px-4 py-2.5 text-[9px] sm:text-[10px] font-mono tracking-widest text-steel bg-[#050505]/80">
-                <div className="flex items-center gap-1.5 sm:gap-2">
-                  <span className="rounded border border-[#313150]/80 bg-[#111111]/80 px-2 sm:px-3 py-1 text-pure-white shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
-                    WEB / BROWSER
-                  </span>
-                  <span className="px-2 py-1 opacity-50 hover:opacity-100 transition-opacity cursor-pointer">
-                    CLI / API
-                  </span>
+            <motion.div variants={staggerVariants} className="max-w-[660px]">
+              <div className="flex flex-col gap-y-2.5">
+                <div className="border-[#313150] bg-[#0A0A0A] rounded-lg border">
+                  <div className="border-[#313150] flex gap-3 border-b p-3.5">
+                    <button type="button" className="cursor-pointer">
+                      <span className="grid h-6 w-fit place-content-center rounded-sm border px-1.5 bg-[#111111] border-[#313150] text-[#E6E6E6]">
+                        <p className="text-pure-white text-pretty font-mono text-[13px] leading-[100%] tracking-[-0.015rem] uppercase">WEB / BROWSER</p>
+                      </span>
+                    </button>
+                    <button type="button" className="cursor-pointer">
+                      <span className="grid h-6 w-fit place-content-center rounded-sm border px-1.5 border-transparent text-steel hover:text-[#E6E6E6] transition-colors duration-150">
+                        <p className="text-pretty font-mono text-[13px] leading-[100%] tracking-[-0.015rem] uppercase">CLI / API</p>
+                      </span>
+                    </button>
+                  </div>
+
+                  <div className="px-3.5 py-5">
+                    <div className="text-pure-white relative flex items-center gap-3 overflow-clip p-3.5 border-[#313150] bg-[#000000] rounded-lg border">
+                      <span className="text-pretty font-mono text-[15px] tracking-[-0.0175rem] lg:text-[18px] lg:tracking-[-0.02rem] flex-1 flex items-center overflow-x-auto leading-snug !normal-case [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden whitespace-nowrap">
+                        <span className="text-safety-orange mr-2">&gt;</span>
+                        <input
+                          type="text"
+                          placeholder={placeholder + (loading ? '' : '|')}
+                          value={gitUrl}
+                          onChange={(e) => setGitUrl(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleIngest()}
+                          disabled={loading}
+                          className="w-full bg-transparent font-mono outline-none placeholder:text-steel/60 transition-colors"
+                        />
+                      </span>
+
+                      <button
+                        onClick={handleIngest}
+                        disabled={loading || !gitUrl.trim()}
+                        className="group absolute transition-all duration-200 lg:p-2.5 opacity-100 -m-2 p-2 hover:bg-[#313150]/50 bg-[#0A0A0A] z-50 cursor-pointer top-4 right-3.5 rounded-md border border-[#313150] flex items-center justify-center p-1"
+                        aria-label="Initialize"
+                      >
+                        {loading ? (
+                          <span className="font-mono text-[11px] text-steel">...</span>
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 256 256" className="transition-all duration-200 will-change-transform text-steel group-hover:text-pure-white">
+                            <path d="M216,32H88a8,8,0,0,0-8,8V80H40a8,8,0,0,0-8,8V216a8,8,0,0,0,8,8H168a8,8,0,0,0,8-8V176h40a8,8,0,0,0,8-8V40A8,8,0,0,0,216,32ZM160,208H48V96H160Zm48-48H176V88a8,8,0,0,0-8-8H96V48H208Z"></path>
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {error && (
+                  <motion.div variants={staggerVariants} className="mt-2 font-mono text-[15px] text-safety-orange drop-shadow-[0_0_8px_rgba(255,77,0,0.5)]">
+                    [ERR] {error}
+                  </motion.div>
+                )}
+
+                {status && (
+                  <motion.div variants={staggerVariants} className="mt-2 flex flex-col gap-2 border border-[#313150] bg-[#0A0A0A] p-4 rounded-xl">
+                    <div className="flex items-center justify-between font-mono text-[10px] text-steel tracking-widest uppercase">
+                      <span>{status}</span>
+                      <span>{progress}%</span>
+                    </div>
+                    <div className="h-1 w-full bg-obsidian rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-safety-orange transition-all duration-300 shadow-[0_0_8px_rgba(255,77,0,0.8)] rounded-full"
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+
+          {/* Footer (Integrations) */}
+          <div className="mt-auto pt-6 z-10 hidden lg:block">
+            <section className="relative mx-auto grid h-auto w-full grid-cols-4 gap-x-4 lg:grid-cols-12 lg:gap-x-6 my-20 bg-transparent first:mt-4 first:lg:mt-10 px-0 lg:px-0 lg:mt-0 lg:mb-0 lg:items-center mt-0 mb-0">
+              <div className="text-pretty font-mono text-[15px] leading-[100%] tracking-[-0.0175rem] inline-flex items-center uppercase gap-3 text-steel col-span-full mb-8 h-max lg:col-span-12 lg:mb-0 whitespace-nowrap">
+                <div className="size-2.5 transform-gpu rounded-full border bg-safety-orange border-transparent"></div>
+                <p className="whitespace-nowrap text-steel text-pretty font-mono text-[13px] leading-[100%] tracking-[-0.015rem] uppercase">
+                  Platform Integrations
+                </p>
+              </div>
+
+              <div className="relative col-span-full overflow-hidden lg:col-span-12 mt-4">
+                <div className="relative flex w-fit transition-opacity duration-300 ease-in-out opacity-100 items-center justify-start gap-10 sm:gap-20 opacity-40 grayscale">
+                  <div className="flex items-center justify-center font-sans text-[20px] sm:text-[22px] font-bold text-steel hover:text-pure-white transition-colors duration-250 w-fit h-6 lg:h-10">GitHub</div>
+                  <div className="flex items-center justify-center font-sans text-[20px] sm:text-[22px] font-bold text-steel hover:text-pure-white transition-colors duration-250 w-fit h-6 lg:h-10">GitLab</div>
+                  <div className="flex items-center justify-center font-sans text-[20px] sm:text-[22px] font-bold text-steel hover:text-pure-white transition-colors duration-250 w-fit h-6 lg:h-10">Bitbucket</div>
                 </div>
               </div>
-              <div className="flex flex-col gap-3 p-4 sm:p-5 lg:p-6 bg-[#000000]/60">
-                <div className="relative flex items-center">
-                  <div className="absolute left-0 font-mono text-safety-orange">{'>'}</div>
-                  <input
-                    type="text"
-                    placeholder={placeholder + (loading ? '' : '|')}
-                    value={gitUrl}
-                    onChange={(e) => setGitUrl(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleIngest()}
-                    disabled={loading}
-                    className="w-full bg-transparent pl-6 font-mono text-xs sm:text-sm text-pure-white outline-none placeholder:text-steel/60 transition-colors"
-                  />
-                </div>
-              </div>
-            </div>
+            </section>
+          </div>
 
-            <motion.button
-              onClick={handleIngest}
-              disabled={loading || !gitUrl.trim()}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="mt-3 w-full bg-pure-white py-3.5 sm:py-4 font-sans text-[11px] sm:text-xs font-bold tracking-[0.15em] text-obsidian transition-colors uppercase hover:bg-safety-orange hover:text-pure-white disabled:opacity-50"
-            >
-              {loading ? 'PROCESSING...' : 'INITIALIZE'}
-            </motion.button>
-          </motion.div>
-
-          {error && (
-            <motion.div variants={staggerVariants} className="mt-4 font-mono text-sm text-safety-orange drop-shadow-[0_0_8px_rgba(255,77,0,0.5)]">
-              [ERR] {error}
-            </motion.div>
-          )}
-
-          {status && (
-            <motion.div variants={staggerVariants} className="mt-4 flex max-w-[540px] flex-col gap-2 border border-[#313150] bg-[#0A0A0A] p-4 rounded-xl">
-              <div className="flex items-center justify-between font-mono text-[10px] text-steel tracking-widest uppercase">
-                <span>{status}</span>
-                <span>{progress}%</span>
-              </div>
-              <div className="h-1 w-full bg-obsidian rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-safety-orange transition-all duration-300 shadow-[0_0_8px_rgba(255,77,0,0.8)] rounded-full"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-            </motion.div>
-          )}
-
-          {/* Bottom Trusted By block to balance the layout like factory.ai */}
-          <motion.div variants={staggerVariants} className="mt-16 sm:mt-24 flex items-center gap-3">
-            <div className="h-1.5 w-1.5 rounded-full bg-safety-orange" />
-            <span className="font-mono text-[9px] tracking-widest text-steel uppercase">Platform Integrations</span>
-          </motion.div>
-          <motion.div variants={staggerVariants} className="mt-4 flex items-center gap-8 opacity-40 grayscale pointer-events-none">
-            <span className="font-sans text-sm font-bold text-steel">GitHub</span>
-            <span className="font-sans text-sm font-bold text-steel">GitLab</span>
-            <span className="font-sans text-sm font-bold text-steel">Bitbucket</span>
-          </motion.div>
         </motion.div>
 
-        {/* Right Column Visualizer */}
-        <div className="pointer-events-none relative w-full h-[300px] sm:h-[450px] lg:h-[700px] flex items-center justify-center lg:justify-end xl:-mx-8 opacity-90 pt-[6vh]">
-          <AgentNetworkVisualizer />
+        {/* Right Column (Visualizer) */}
+        <div className="pointer-events-none relative h-full w-full overflow-hidden md:pointer-events-auto mix-blend-lighten z-0 col-span-full aspect-[3/2] max-w-[770px] lg:absolute lg:-top-[clamp(20px,11dvh,130px)] lg:-right-12 lg:aspect-[4/3] lg:max-h-[clamp(715px,55vw,1100px)] lg:w-[clamp(660px,59vw,1100px)] lg:max-w-none 2xl:-right-2">
+          <div style={{ width: '100%', height: '100%' }}>
+            <AgentNetworkVisualizer />
+          </div>
         </div>
+
+        {/* Footer (Integrations) - Mobile */}
+        <div className="col-span-full mt-auto pt-6 z-10 lg:hidden">
+          <section className="relative mx-auto grid h-auto w-full grid-cols-4 gap-x-4 lg:grid-cols-12 lg:gap-x-6 my-20 bg-transparent first:mt-4 first:lg:mt-10 px-0 lg:px-0 lg:mt-0 lg:mb-0 lg:items-center mt-0 mb-0">
+            <div className="text-pretty font-mono text-[15px] leading-[100%] tracking-[-0.0175rem] inline-flex items-center uppercase gap-3 text-steel col-span-full mb-8 h-max lg:col-span-2 lg:mb-0 whitespace-nowrap">
+              <div className="size-2.5 transform-gpu rounded-full border bg-safety-orange border-transparent"></div>
+              <p className="whitespace-nowrap text-steel text-pretty font-mono text-[13px] leading-[100%] tracking-[-0.015rem] uppercase">
+                Platform Integrations
+              </p>
+            </div>
+
+            <div className="relative col-span-full overflow-hidden lg:col-span-8 lg:col-start-5 xl:col-span-6 xl:col-start-7">
+              <div className="relative flex w-fit transition-opacity duration-300 ease-in-out opacity-100 items-center justify-start gap-10 sm:gap-20 opacity-40 grayscale">
+                <div className="flex items-center justify-center font-sans text-[20px] sm:text-[22px] font-bold text-steel hover:text-pure-white transition-colors duration-250 w-fit h-6 lg:h-10">GitHub</div>
+                <div className="flex items-center justify-center font-sans text-[20px] sm:text-[22px] font-bold text-steel hover:text-pure-white transition-colors duration-250 w-fit h-6 lg:h-10">GitLab</div>
+                <div className="flex items-center justify-center font-sans text-[20px] sm:text-[22px] font-bold text-steel hover:text-pure-white transition-colors duration-250 w-fit h-6 lg:h-10">Bitbucket</div>
+              </div>
+            </div>
+          </section>
+        </div>
+
       </div>
-    </section>
+    </main>
   );
 }
+
+
