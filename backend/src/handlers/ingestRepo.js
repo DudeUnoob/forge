@@ -93,7 +93,7 @@ async function handleIngestHttpRequest(event) {
         }
 
         // Locally, enqueueIngest runs synchronously so the status is already UPLOADED.
-        const isLocal = Boolean(process.env.AWS_SAM_LOCAL);
+        const isLocal = Boolean(process.env.AWS_SAM_LOCAL || process.env.IS_LOCAL);
         return success({
             repoId,
             name: repoName,
@@ -179,7 +179,7 @@ async function handleAsyncIngestInvocation(event) {
 async function enqueueIngest(payload) {
     // When running locally via `sam local`, there is no reachable Lambda endpoint
     // to self-invoke, so we run the ingest synchronously instead.
-    if (process.env.AWS_SAM_LOCAL) {
+    if (process.env.AWS_SAM_LOCAL || process.env.IS_LOCAL) {
         await handleAsyncIngestInvocation({
             source: INGEST_ASYNC_EVENT_SOURCE,
             ...payload,

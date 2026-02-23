@@ -123,11 +123,12 @@ async function handleStoryboardHttpRequest(event) {
             throw err;
         }
 
+        const isLocal = Boolean(process.env.AWS_SAM_LOCAL || process.env.IS_LOCAL);
         return success({
             repoId,
-            status: 'GENERATING_STORYBOARD',
-            inProgress: true,
-            queued: true,
+            status: isLocal ? 'GENERATED_STORYBOARD' : 'GENERATING_STORYBOARD', // Assuming frontend looks for a completion state or just refetches
+            inProgress: !isLocal,
+            queued: !isLocal,
             storyboardId: null,
         }, 202);
     } catch (err) {
@@ -172,6 +173,11 @@ async function handleAsyncStoryboardInvocation(event) {
 }
 
 async function enqueueStoryboardGeneration(repoId, role) {
+    if (process.env.AWS_SAM_LOCAL || process.env.IS_LOCAL) {
+        await handleAsyncStoryboardInvocation({ source: STORYBOARD_ASYNC_EVENT_SOURCE, repoId, role });
+        return;
+    }
+
     const functionName = process.env.AWS_LAMBDA_FUNCTION_NAME;
     if (!functionName) {
         throw new Error('Missing AWS_LAMBDA_FUNCTION_NAME; cannot enqueue storyboard generation');

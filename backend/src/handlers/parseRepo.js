@@ -70,11 +70,12 @@ async function handleParseHttpRequest(event) {
             throw err;
         }
 
+        const isLocal = Boolean(process.env.AWS_SAM_LOCAL || process.env.IS_LOCAL);
         return success({
             repoId,
-            status: 'PARSING',
-            inProgress: true,
-            queued: true,
+            status: isLocal ? 'PARSED' : 'PARSING',
+            inProgress: !isLocal,
+            queued: !isLocal,
         }, 202);
     } catch (err) {
         console.error('ParseRepo enqueue error:', err);
@@ -140,6 +141,11 @@ async function handleAsyncParseInvocation(event) {
 }
 
 async function enqueueParse(repoId) {
+    if (process.env.AWS_SAM_LOCAL || process.env.IS_LOCAL) {
+        await handleAsyncParseInvocation({ source: PARSE_ASYNC_EVENT_SOURCE, repoId });
+        return;
+    }
+
     const functionName = process.env.AWS_LAMBDA_FUNCTION_NAME;
     if (!functionName) {
         throw new Error('Missing AWS_LAMBDA_FUNCTION_NAME; cannot enqueue parse');
