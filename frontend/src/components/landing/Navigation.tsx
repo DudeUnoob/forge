@@ -11,7 +11,7 @@ export default function Navigation() {
       initial={{ y: -100, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ type: 'spring', stiffness: 100, damping: 20 }}
-      className="fixed top-0 left-0 right-0 z-50 border-b border-[#1A1A1A] bg-obsidian/80 backdrop-blur-md px-6 py-4"
+      className="fixed top-0 left-0 right-0 z-50 bg-obsidian/80 backdrop-blur-md px-6 py-4"
     >
       <div className="mx-auto flex w-full max-w-7xl items-center justify-between">
         <div className="flex items-center gap-2">
