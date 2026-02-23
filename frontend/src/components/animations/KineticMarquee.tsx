@@ -10,7 +10,7 @@ export default function KineticMarquee() {
   return (
     <div className="flex flex-col items-center border-y border-[#1A1A1A] bg-[#050505] py-8 select-none">
       <div className="mb-6 font-mono text-[10px] uppercase tracking-widest text-steel/50">
-        Trusted by teams at
+        Trusted languages and repos of
       </div>
       <div className="relative flex w-full overflow-x-hidden">
         <div className="animate-marquee flex whitespace-nowrap">

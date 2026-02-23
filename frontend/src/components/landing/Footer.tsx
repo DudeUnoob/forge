@@ -4,14 +4,14 @@ export default function Footer() {
   return (
     <footer className="bg-[#020202] py-24 px-6 relative z-10">
       <div className="mx-auto max-w-7xl flex flex-col md:flex-row justify-between gap-16">
-        
+
         {/* Left: System Health */}
         <div className="flex flex-col gap-8">
           <div className="flex items-center gap-3">
             <Hexagon size={32} weight="fill" className="text-pure-white" />
             <span className="font-sans text-2xl font-bold tracking-tighter text-pure-white">Forge</span>
           </div>
-          
+
           <div className="flex flex-col gap-3 font-mono text-sm tracking-widest text-steel mt-4">
             <div className="flex items-center gap-3">
               <span className="h-2 w-2 rounded-full bg-safety-orange animate-pulse drop-shadow-[0_0_4px_rgba(255,77,0,0.8)]"></span>

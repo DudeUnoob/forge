@@ -246,76 +246,76 @@ export default function HeroSection() {
   return (
     <section className="relative flex min-h-[100dvh] w-full flex-col items-center justify-center gap-8 px-6 pt-20 pb-12 overflow-hidden md:flex-row md:gap-0">
       <div className="mx-auto flex w-full max-w-7xl flex-col items-start md:flex-row md:items-center relative z-10">
-        <motion.div 
+        <motion.div
           className="z-10 flex w-full max-w-2xl shrink-0 flex-col gap-6 sm:gap-8"
           initial="hidden"
-        animate="visible"
-        variants={{
-          hidden: {},
-          visible: {
-            transition: { staggerChildren: 0.15 },
-          },
-        }}
-      >
-        <motion.div variants={staggerVariants} className="flex flex-col gap-4">
-          <h1 className="font-sans text-4xl font-semibold tracking-tighter text-pure-white sm:text-5xl md:text-7xl">
-            Forge <span className="text-safety-orange">.</span>
-          </h1>
-          <p className="max-w-[45ch] font-sans text-base leading-relaxed text-steel sm:text-lg">
-            Turn any repository into an interactive learning storyboard.
-            Understand codebases step-by-step with AI-powered explanations,
-            visual diagrams, and contextual chat.
-          </p>
-        </motion.div>
-
-        <motion.div variants={staggerVariants} className="flex flex-col gap-2">
-          <div className="relative flex items-center">
-            <div className="absolute left-4 font-mono text-steel">
-              {'>'}
-            </div>
-            <input
-              type="text"
-              placeholder={placeholder + (loading ? '' : '|')}
-              value={gitUrl}
-              onChange={(e) => setGitUrl(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleIngest()}
-              disabled={loading}
-              className="w-full bg-obsidian border border-[#313150] p-4 pl-10 font-mono text-sm text-pure-white outline-none transition-colors focus:border-safety-orange placeholder:text-steel"
-            />
-          </div>
-          
-          <motion.button
-            onClick={handleIngest}
-            disabled={loading || !gitUrl.trim()}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="w-full bg-pure-white py-3 font-sans font-semibold text-obsidian transition-colors hover:bg-safety-orange hover:text-pure-white hover:drop-shadow-[0_0_12px_rgba(255,77,0,0.5)] disabled:opacity-50 disabled:hover:scale-100 disabled:hover:drop-shadow-none md:w-auto md:self-start md:px-8"
-          >
-            {loading ? 'PROCESSING...' : 'INITIALIZE'}
-          </motion.button>
-        </motion.div>
-
-        {error && (
-          <motion.div variants={staggerVariants} className="font-mono text-sm text-safety-orange drop-shadow-[0_0_8px_rgba(255,77,0,0.5)]">
-            [ERR] {error}
+          animate="visible"
+          variants={{
+            hidden: {},
+            visible: {
+              transition: { staggerChildren: 0.15 },
+            },
+          }}
+        >
+          <motion.div variants={staggerVariants} className="flex flex-col gap-4">
+            <h1 className="font-sans text-4xl font-normal tracking-[-0.05625rem] text-pure-white sm:text-5xl md:text-7xl md:tracking-[-0.09rem] text-balance">
+              Forge <span className="text-safety-orange">.</span>
+            </h1>
+            <p className="max-w-[55ch] font-mono text-[16px] leading-[120%] tracking-[-0.02rem] text-steel lg:text-[18px] lg:tracking-[-0.0225rem] text-balance">
+              Turn any repository into an interactive learning storyboard.
+              Understand codebases step-by-step with AI-powered explanations,
+              visual diagrams, and contextual chat.
+            </p>
           </motion.div>
-        )}
 
-        {status && (
-          <motion.div variants={staggerVariants} className="flex flex-col gap-2 border border-[#313150] bg-[#0A0A0A] p-4">
-            <div className="flex items-center justify-between font-mono text-xs text-steel">
-              <span>{status.toUpperCase()}</span>
-              <span>{progress}%</span>
-            </div>
-            <div className="h-1 w-full bg-obsidian">
-              <div
-                className="h-full bg-safety-orange transition-all duration-300 drop-shadow-[0_0_8px_rgba(255,77,0,0.8)]"
-                style={{ width: `${progress}%` }}
+          <motion.div variants={staggerVariants} className="flex flex-col gap-2">
+            <div className="relative flex items-center">
+              <div className="absolute left-4 font-mono text-steel">
+                {'>'}
+              </div>
+              <input
+                type="text"
+                placeholder={placeholder + (loading ? '' : '|')}
+                value={gitUrl}
+                onChange={(e) => setGitUrl(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleIngest()}
+                disabled={loading}
+                className="w-full bg-obsidian border border-[#313150] p-4 pl-10 font-mono text-sm text-pure-white outline-none transition-colors focus:border-safety-orange placeholder:text-steel"
               />
             </div>
+
+            <motion.button
+              onClick={handleIngest}
+              disabled={loading || !gitUrl.trim()}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="w-full bg-pure-white py-3 font-sans font-semibold text-obsidian transition-colors hover:bg-safety-orange hover:text-pure-white hover:drop-shadow-[0_0_12px_rgba(255,77,0,0.5)] disabled:opacity-50 disabled:hover:scale-100 disabled:hover:drop-shadow-none md:w-auto md:self-start md:px-8"
+            >
+              {loading ? 'PROCESSING...' : 'INITIALIZE'}
+            </motion.button>
           </motion.div>
-        )}
-      </motion.div>
+
+          {error && (
+            <motion.div variants={staggerVariants} className="font-mono text-sm text-safety-orange drop-shadow-[0_0_8px_rgba(255,77,0,0.5)]">
+              [ERR] {error}
+            </motion.div>
+          )}
+
+          {status && (
+            <motion.div variants={staggerVariants} className="flex flex-col gap-2 border border-[#313150] bg-[#0A0A0A] p-4">
+              <div className="flex items-center justify-between font-mono text-xs text-steel">
+                <span>{status.toUpperCase()}</span>
+                <span>{progress}%</span>
+              </div>
+              <div className="h-1 w-full bg-obsidian">
+                <div
+                  className="h-full bg-safety-orange transition-all duration-300 drop-shadow-[0_0_8px_rgba(255,77,0,0.8)]"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </motion.div>
+          )}
+        </motion.div>
 
         <div className="pointer-events-none relative w-full max-w-[420px] shrink-0 self-center opacity-80 md:absolute md:right-0 md:top-0 md:h-full md:max-h-none md:w-[420px] md:max-w-[50%] md:opacity-100 md:flex md:items-center md:justify-center lg:w-[520px] xl:w-[600px]">
           <AgentNetworkVisualizer />

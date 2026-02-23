@@ -8,18 +8,18 @@ function VerticalSlider({ delay, height = "60%", highlight = false, dotTop = fal
     <div className="flex flex-col items-center gap-3">
       {/* Top dot */}
       <div className={`w-1.5 h-1.5 rounded-full ${dotTop ? (highlight ? 'bg-safety-orange drop-shadow-[0_0_4px_rgba(255,77,0,0.5)]' : 'bg-obsidian') : 'bg-transparent'}`}></div>
-      
+
       <div className="relative w-4 h-32 bg-steel/20 rounded-full flex flex-col justify-end items-center">
-        <motion.div 
+        <motion.div
           className={`w-full rounded-full ${highlight ? 'bg-safety-orange drop-shadow-[0_0_6px_rgba(255,77,0,0.3)]' : 'bg-steel/40'} relative flex flex-col justify-start items-center`}
           initial={{ height: '10%' }}
           animate={{ height: ['10%', height, '10%'] }}
           transition={{ duration: 4 + Math.random() * 2, repeat: Infinity, ease: "easeInOut", delay }}
         >
-           <div className={`w-3.5 h-3.5 rounded-full bg-pure-white border-[2.5px] absolute -top-1.5 shadow-sm ${highlight ? 'border-safety-orange' : 'border-steel/60'}`}></div>
+          <div className={`w-3.5 h-3.5 rounded-full bg-pure-white border-[2.5px] absolute -top-1.5 shadow-sm ${highlight ? 'border-safety-orange' : 'border-steel/60'}`}></div>
         </motion.div>
       </div>
-      
+
       {/* Bottom dot */}
       <div className={`w-1.5 h-1.5 rounded-full ${dotBottom ? 'border border-steel/50' : 'bg-transparent'}`}></div>
     </div>
@@ -36,7 +36,7 @@ function GrowingBarChart() {
           const isOrange = i < 14;
           const heightPercent = Math.pow(i / (bars - 1), 2) * 80 + 20; // Exponential growth
           return (
-            <motion.div 
+            <motion.div
               key={i}
               className={`w-1.5 rounded-t-sm ${isOrange ? 'bg-safety-orange' : 'bg-steel/30'}`}
               initial={{ height: '0%' }}
@@ -50,14 +50,14 @@ function GrowingBarChart() {
 
       {/* Horizontal Slider */}
       <div className="w-full relative h-3 bg-steel/20 rounded-full flex items-center px-1">
-        <motion.div 
+        <motion.div
           className="h-1.5 bg-safety-orange rounded-full relative"
           initial={{ width: "20%" }}
           animate={{ width: ["20%", "80%", "20%"] }}
           transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
         >
           <div className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-obsidian border-[2px] border-safety-orange shadow-[0_0_8px_rgba(255,77,0,0.4)] flex items-center justify-center">
-             <div className="w-1 h-1 bg-pure-white rounded-full"></div>
+            <div className="w-1 h-1 bg-pure-white rounded-full"></div>
           </div>
         </motion.div>
       </div>
@@ -82,13 +82,13 @@ export default function PivotSection() {
 
       <div className="w-full max-w-7xl mx-auto h-full flex flex-col justify-center">
         <FadeInStagger className="grid grid-cols-1 md:grid-cols-3 gap-12 lg:gap-16 h-full min-h-[600px]" staggerDelay={0.15}>
-          
+
           {/* Column 1 */}
           <FadeInStaggerItem className="flex flex-col justify-between col-span-1 h-full relative z-10 py-4">
             <div>
               <div className="flex items-center gap-3 mb-6">
-                 <div className="w-2 h-2 rounded-full bg-steel/60"></div>
-                 <span className="font-mono text-[10px] uppercase tracking-widest text-obsidian font-bold">Enterprise</span>
+                <div className="w-2 h-2 rounded-full bg-steel/60"></div>
+                <span className="font-mono text-[10px] uppercase tracking-widest text-obsidian font-bold">Enterprise</span>
               </div>
               <p className="font-mono text-[13px] text-obsidian/80 leading-relaxed max-w-[34ch]">
                 Forge is designed to scale with your engineering team—transforming tribal knowledge into interactive storyboards that integrate seamlessly into your workflow.
@@ -115,13 +115,13 @@ export default function PivotSection() {
             </div>
 
             <div className="mt-16 flex justify-between items-end w-full max-w-[280px]">
-               <VerticalSlider delay={0} height="30%" dotBottom />
-               <VerticalSlider delay={0.4} height="80%" dotTop />
-               <VerticalSlider delay={0.8} height="50%" highlight dotBottom dotTop />
-               <VerticalSlider delay={1.2} height="40%" dotTop />
-               <VerticalSlider delay={1.6} height="90%" highlight dotBottom />
-               <VerticalSlider delay={2.0} height="20%" dotBottom />
-               <VerticalSlider delay={2.4} height="60%" highlight dotTop />
+              <VerticalSlider delay={0} height="30%" dotBottom />
+              <VerticalSlider delay={0.4} height="80%" dotTop />
+              <VerticalSlider delay={0.8} height="50%" highlight dotBottom dotTop />
+              <VerticalSlider delay={1.2} height="40%" dotTop />
+              <VerticalSlider delay={1.6} height="90%" highlight dotBottom />
+              <VerticalSlider delay={2.0} height="20%" dotBottom />
+              <VerticalSlider delay={2.4} height="60%" highlight dotTop />
             </div>
           </FadeInStaggerItem>
 
@@ -140,7 +140,7 @@ export default function PivotSection() {
             </div>
 
             <div className="mt-16 w-full max-w-[320px]">
-               <GrowingBarChart />
+              <GrowingBarChart />
             </div>
           </FadeInStaggerItem>
 

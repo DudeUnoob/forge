@@ -15,8 +15,8 @@ const config: Config = {
         'pure-white': '#FFFFFF',
       },
       fontFamily: {
-        sans: ['Inter', 'Geist', 'sans-serif'],
-        mono: ['JetBrains Mono', 'Geist Mono', 'monospace'],
+        sans: ['var(--font-geist-sans)', 'Geist', 'sans-serif'],
+        mono: ['var(--font-geist-mono)', 'Geist Mono', 'monospace'],
       },
       keyframes: {
         marquee: {
