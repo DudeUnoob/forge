@@ -46,8 +46,8 @@ const config: Config = {
         DEFAULT: 'var(--radius)',
       },
       fontFamily: {
-        sans: ['var(--font-geist-sans)', 'Geist', 'sans-serif'],
-        mono: ['var(--font-geist-mono)', 'Geist Mono', 'monospace'],
+        sans: ['"Geist Custom"', 'var(--font-geist-sans)', 'Geist', 'sans-serif'],
+        mono: ['"Geist Mono Custom"', 'var(--font-geist-mono)', 'Geist Mono', 'monospace'],
       },
       keyframes: {
         marquee: {
