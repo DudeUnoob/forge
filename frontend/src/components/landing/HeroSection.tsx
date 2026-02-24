@@ -380,7 +380,7 @@ export default function HeroSection() {
         </motion.div>
 
         {/* Right Column (Visualizer) */}
-        <div className="pointer-events-none relative h-full w-full overflow-hidden md:pointer-events-auto mix-blend-lighten z-0 col-span-full aspect-[3/2] max-w-[770px] lg:absolute lg:-top-[clamp(20px,11dvh,130px)] lg:-right-12 lg:aspect-[4/3] lg:max-h-[clamp(715px,55vw,1100px)] lg:w-[clamp(660px,59vw,1100px)] lg:max-w-none 2xl:-right-2">
+        <div className="pointer-events-none relative h-full w-full overflow-hidden md:pointer-events-auto mix-blend-lighten z-0 col-span-full aspect-[3/2] max-w-[770px] lg:absolute lg:top-[clamp(15px,8dvh,90px)] lg:-right-12 lg:aspect-[4/3] lg:max-h-[clamp(715px,55vw,1100px)] lg:w-[clamp(660px,59vw,1100px)] lg:max-w-none 2xl:-right-2">
           <div style={{ width: '100%', height: '100%' }}>
             <AgentNetworkVisualizer />
           </div>
