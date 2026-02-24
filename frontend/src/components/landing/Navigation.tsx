@@ -7,7 +7,7 @@ import Magnetic from '@/components/animations/Magnetic';
 
 export default function Navigation() {
   return (
-    <header className="fixed inset-x-0 top-0 z-50 px-4 md:border-b-0 lg:px-9 bg-dark-base-primary/80 backdrop-blur-md">
+    <header className="fixed inset-x-0 top-0 z-50 px-4 md:border-b-0 lg:px-9 bg-[#020202] backdrop-blur-md">
       <div className="mx-auto flex items-center justify-between py-5 max-w-[1400px]">
         {/* Logo Section */}
         <a href="/" className="z-50 flex items-center gap-2">
