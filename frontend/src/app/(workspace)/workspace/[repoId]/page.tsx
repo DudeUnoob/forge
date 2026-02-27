@@ -1189,8 +1189,31 @@ function CodeViewer({ content, filePath, highlightedLines }: {
     );
 }
 
+function sanitizeMermaid(raw: string): string {
+    let s = raw.trim();
+    // Strip markdown code fences
+    s = s.replace(/^```(?:mermaid)?\s*\n?/i, '').replace(/\n?```\s*$/g, '');
+    // Remove %%{init:...}%% config directives
+    s = s.replace(/%%\{init:[\s\S]*?\}%%/g, '');
+    // Remove HTML tags from node labels
+    s = s.replace(/<[^>]+>/g, '');
+    // Wrap unquoted labels that contain special chars in double quotes
+    // Matches node definitions like A[label with spaces] or A(label)
+    s = s.replace(/(\w+)\[([^\]"]+)\]/g, (_m, id, label) => {
+        if (/[^a-zA-Z0-9_]/.test(label)) return `${id}["${label}"]`;
+        return `${id}[${label}]`;
+    });
+    s = s.replace(/(\w+)\(([^)"]+)\)/g, (_m, id, label) => {
+        if (/[^a-zA-Z0-9_]/.test(label)) return `${id}("${label}")`;
+        return `${id}(${label})`;
+    });
+    // Normalize line endings
+    s = s.replace(/\r\n/g, '\n');
+    return s.trim();
+}
+
 function MermaidDiagram({ diagram, compact = false }: { diagram: string; compact?: boolean }) {
-    const source = typeof diagram === 'string' ? diagram.trim() : '';
+    const source = typeof diagram === 'string' ? sanitizeMermaid(diagram) : '';
     const [svg, setSvg] = useState('');
     const [renderError, setRenderError] = useState<string | null>(null);
     const stableId = useId().replace(/[^a-zA-Z0-9_-]/g, '');
@@ -1476,6 +1499,19 @@ function StoryboardPanel({
                     <div className="block-detail-objective">{currentBlock.objective}</div>
                 </div>
 
+                {currentBlock.keyFiles?.length > 0 && (
+                    <div className="block-detail-section">
+                        <div className="block-detail-section-title">Key Files</div>
+                        <div className="block-files-list">
+                            {currentBlock.keyFiles.map(filePath => (
+                                <button key={filePath} type="button" className="block-file-link" onClick={() => onOpenFile(filePath)}>
+                                    <SetiIcon theme={setiTheme} kind="file" name={getFileName(filePath)} className="inline-file-icon" /> {filePath}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 <div className="block-detail-section">
                     <div className="block-detail-section-title">Explanation</div>
                     <div className="markdown-content">
@@ -1488,19 +1524,6 @@ function StoryboardPanel({
                         <div className="block-detail-section-title">Diagram</div>
                         <div className="mermaid-container">
                             <MermaidDiagram diagram={currentBlock.mermaidDiagram} />
-                        </div>
-                    </div>
-                )}
-
-                {currentBlock.keyFiles?.length > 0 && (
-                    <div className="block-detail-section">
-                        <div className="block-detail-section-title">Key Files</div>
-                        <div className="block-files-list">
-                            {currentBlock.keyFiles.map(filePath => (
-                                <button key={filePath} type="button" className="block-file-link" onClick={() => onOpenFile(filePath)}>
-                                    <SetiIcon theme={setiTheme} kind="file" name={getFileName(filePath)} className="inline-file-icon" /> {filePath}
-                                </button>
-                            ))}
                         </div>
                     </div>
                 )}
@@ -2160,19 +2183,86 @@ function parseResourceString(raw: string): { label: string; url?: string } {
     return { label: trimmed };
 }
 
-/** Very simple markdown-to-HTML (bold, italic, code, headings, links) */
-function simpleMarkdown(md: string): string {
-    return md
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer noopener">$1</a>')
-        .replace(/(^|[\s(])(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noreferrer noopener">$2</a>')
-        .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-        .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-        .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-        .replace(/`([^`]+)`/g, '<code>$1</code>')
-        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-        .replace(/\n/g, '<br/>');
+/** Markdown-to-HTML supporting code blocks, lists, blockquotes, headings, inline styles, links */
+function simpleMarkdown(src: string): string {
+    const codeBlocks: string[] = [];
+
+    // 1. Extract fenced code blocks before any escaping
+    let text = src.replace(/```(\w*)\n([\s\S]*?)```/g, (_m, lang, code) => {
+        const escaped = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const placeholder = `%%CODEBLOCK_${codeBlocks.length}%%`;
+        codeBlocks.push(`<pre><code class="language-${lang || 'text'}">${escaped}</code></pre>`);
+        return placeholder;
+    });
+
+    // 2. Escape HTML in remaining text
+    text = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    // 3. Links (before other inline transforms)
+    text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer noopener">$1</a>');
+    text = text.replace(/(^|[\s(])(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noreferrer noopener">$2</a>');
+
+    // 4. Headings
+    text = text.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    text = text.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+    text = text.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+
+    // 5. Inline styles
+    text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+    text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    text = text.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+
+    // 6. Blockquotes (consecutive > lines grouped)
+    text = text.replace(/(^&gt; .+(?:\n&gt; .+)*)/gm, (match) => {
+        const inner = match.replace(/^&gt; /gm, '');
+        return `<blockquote>${inner}</blockquote>`;
+    });
+
+    // 7. Lists — process line-by-line to group consecutive list items
+    const lines = text.split('\n');
+    const result: string[] = [];
+    let listType: 'ul' | 'ol' | null = null;
+
+    for (let i = 0; i < lines.length; i++) {
+        const ulMatch = lines[i].match(/^(\s*)[-*]\s+(.+)$/);
+        const olMatch = lines[i].match(/^(\s*)\d+\.\s+(.+)$/);
+
+        if (ulMatch) {
+            if (listType !== 'ul') {
+                if (listType) result.push(`</${listType}>`);
+                result.push('<ul>');
+                listType = 'ul';
+            }
+            result.push(`<li>${ulMatch[2]}</li>`);
+        } else if (olMatch) {
+            if (listType !== 'ol') {
+                if (listType) result.push(`</${listType}>`);
+                result.push('<ol>');
+                listType = 'ol';
+            }
+            result.push(`<li>${olMatch[2]}</li>`);
+        } else {
+            if (listType) {
+                result.push(`</${listType}>`);
+                listType = null;
+            }
+            result.push(lines[i]);
+        }
+    }
+    if (listType) result.push(`</${listType}>`);
+
+    text = result.join('\n');
+
+    // 8. Line breaks for remaining plain lines (but not inside block elements)
+    text = text.replace(/\n/g, '<br/>');
+    // Clean up extra breaks around block elements
+    text = text.replace(/<br\/>(<\/?(?:ul|ol|li|blockquote|h[1-3]|pre)>)/g, '$1');
+    text = text.replace(/(<\/?(?:ul|ol|li|blockquote|h[1-3]|pre)>)<br\/>/g, '$1');
+
+    // 9. Restore code blocks
+    codeBlocks.forEach((block, i) => {
+        text = text.replace(`%%CODEBLOCK_${i}%%`, block);
+    });
+
+    return text;
 }

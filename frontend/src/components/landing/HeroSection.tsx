@@ -262,7 +262,7 @@ export default function HeroSection() {
           <div className="flex flex-col gap-y-6 lg:gap-y-8">
             <motion.div variants={staggerVariants} className="text-pretty font-mono text-[15px] leading-[100%] tracking-[-0.0175rem] inline-flex items-center gap-3 pt-4 uppercase">
               <div className="size-2.5 transform-gpu rounded-full border bg-safety-orange border-transparent shadow-[0_0_8px_rgba(255,77,0,0.6)]"></div>
-              <p className="whitespace-nowrap text-steel text-pretty font-mono text-[13px] leading-[100%] tracking-[-0.015rem] uppercase">Vision</p>
+              <p className="whitespace-nowrap text-[#FAFAFA] text-pretty font-mono text-[13px] leading-[100%] tracking-[-0.015rem] uppercase">Vision</p>
             </motion.div>
 
             <motion.h1
