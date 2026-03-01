@@ -1567,7 +1567,7 @@ function StoryboardPanel({
                             {currentBlock.keyTakeaways.map((takeaway, i) => (
                                 <div key={i} className="takeaway-item">
                                     <span className="takeaway-icon">✓</span>
-                                    <span>{takeaway}</span>
+                                    <span dangerouslySetInnerHTML={{ __html: simpleMarkdown(takeaway) }} />
                                 </div>
                             ))}
                         </div>
