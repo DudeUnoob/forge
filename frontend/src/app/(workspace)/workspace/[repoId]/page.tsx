@@ -113,6 +113,7 @@ export default function WorkspacePage() {
     const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
     const [chatInput, setChatInput] = useState('');
     const [chatLoading, setChatLoading] = useState(false);
+    const [activeSnippetContext, setActiveSnippetContext] = useState<{ snippet: string; lang: string; filePath: string } | null>(null);
     const [role, setRole] = useState<Role>('fullstack');
 
     // UI state
@@ -590,15 +591,30 @@ export default function WorkspacePage() {
 
     // ---- Send chat message ----
     const sendChat = useCallback(async () => {
-        if (!chatInput.trim() || !storyboardId || !activeBlock) return;
+        if ((!chatInput.trim() && !activeSnippetContext) || !storyboardId || !activeBlock) return;
 
-        const userMsg: ChatMessage = { role: 'user', content: chatInput.trim() };
+        // Optionally attach the snippet block context visually and in API
+        let apiContent = chatInput.trim();
+        const snippetToAttach = activeSnippetContext;
+
+        if (snippetToAttach) {
+            // Implicit syntax block sent to AI
+            apiContent = `[Context from file: ${snippetToAttach.filePath}]\n\`\`\`${snippetToAttach.lang}\n${snippetToAttach.snippet}\n\`\`\`\n\n${apiContent}`;
+        }
+
+        const userMsg: ChatMessage = {
+            role: 'user',
+            content: chatInput.trim(),
+            contextSnippet: snippetToAttach || undefined
+        };
+
         setChatMessages(prev => [...prev, userMsg]);
         setChatInput('');
+        setActiveSnippetContext(null);
         setChatLoading(true);
 
         try {
-            const { response } = await api.chat.send(storyboardId, activeBlock.blockId, userMsg.content);
+            const { response } = await api.chat.send(storyboardId, activeBlock.blockId, apiContent);
             setChatMessages(prev => [...prev, { role: 'assistant', content: response }]);
         } catch (err) {
             console.error('Chat error:', err);
@@ -609,12 +625,28 @@ export default function WorkspacePage() {
         } finally {
             setChatLoading(false);
         }
-    }, [chatInput, storyboardId, activeBlock]);
+    }, [chatInput, storyboardId, activeBlock, activeSnippetContext]);
 
     // ---- Dismiss error ----
     const dismissError = useCallback((index: number) => {
         setErrors(prev => prev.filter((_, i) => i !== index));
     }, []);
+
+    const handleAskAboutSnippet = useCallback((snippet: string, lang: string, filePath: string) => {
+        // Ensure a block is active so the chat is visible
+        if (!activeBlock && visibleBlocks.length > 0) {
+            activateBlock(visibleBlocks[0]);
+        }
+
+        // Set the snippet context after activating the block so it is not cleared
+        setActiveSnippetContext({ snippet, lang, filePath });
+        setTimeout(() => {
+            const chatInputEl = document.querySelector('.chat-input') as HTMLInputElement | null;
+            if (chatInputEl) {
+                chatInputEl.focus();
+            }
+        }, 50);
+    }, [activeBlock, visibleBlocks, activateBlock]);
 
     if (loading) {
         return (
@@ -1008,6 +1040,8 @@ export default function WorkspacePage() {
                         chatMessages={chatMessages}
                         chatInput={chatInput}
                         chatLoading={chatLoading}
+                        activeSnippetContext={activeSnippetContext}
+                        onClearSnippetContext={() => setActiveSnippetContext(null)}
                         onToggleComplete={toggleBlockComplete}
                         onOpenFile={openFile}
                         onChatInputChange={setChatInput}
@@ -1411,6 +1445,8 @@ function StoryboardPanel({
     chatMessages,
     chatInput,
     chatLoading,
+    activeSnippetContext,
+    onClearSnippetContext,
     onToggleComplete,
     onOpenFile,
     onChatInputChange,
@@ -1432,6 +1468,8 @@ function StoryboardPanel({
     chatMessages: ChatMessage[];
     chatInput: string;
     chatLoading: boolean;
+    activeSnippetContext?: { snippet: string; lang: string; filePath: string } | null;
+    onClearSnippetContext?: () => void;
     onToggleComplete: (blockId: string) => void;
     onOpenFile: (path: string) => void;
     onChatInputChange: (value: string) => void;
@@ -1583,6 +1621,8 @@ function StoryboardPanel({
                         activeBlock={currentBlock}
                         onInputChange={onChatInputChange}
                         onSend={onSendChat}
+                        activeSnippetContext={activeSnippetContext}
+                        onClearSnippetContext={onClearSnippetContext}
                         embedded
                     />
                 </div>
@@ -1604,13 +1644,15 @@ function StoryboardPanel({
 
 
 // ---- Chat Panel ----
-function ChatPanel({ messages, input, loading, activeBlock, onInputChange, onSend, embedded = false }: {
+function ChatPanel({ messages, input, loading, activeBlock, onInputChange, onSend, activeSnippetContext, onClearSnippetContext, embedded = false }: {
     messages: ChatMessage[];
     input: string;
     loading: boolean;
     activeBlock: StoryboardBlock | null;
     onInputChange: (value: string) => void;
     onSend: () => void;
+    activeSnippetContext?: { snippet: string; lang: string; filePath: string } | null;
+    onClearSnippetContext?: () => void;
     embedded?: boolean;
 }) {
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -1662,6 +1704,12 @@ function ChatPanel({ messages, input, loading, activeBlock, onInputChange, onSen
                                     {msg.role === 'user' ? 'You' : 'Forge'}
                                 </div>
                                 <div className="chat-message-content">
+                                    {msg.role === 'user' && msg.contextSnippet && (
+                                        <div className="chat-message-context-pill">
+                                            <Codicon name="list-selection" />
+                                            <span>Attached Code: {getFileName(msg.contextSnippet.filePath || 'snippet')}</span>
+                                        </div>
+                                    )}
                                     {msg.role === 'assistant' ? (
                                         <AssistantMessageContent content={msg.content} />
                                     ) : (
@@ -1683,11 +1731,25 @@ function ChatPanel({ messages, input, loading, activeBlock, onInputChange, onSen
                     </div>
 
                     <div className="chat-input-area">
+                        {activeSnippetContext && (
+                            <div className="chat-snippet-attachment">
+                                <div className="attachment-content">
+                                    <Codicon name="file-code" />
+                                    <span className="attachment-filename">{getFileName(activeSnippetContext.filePath)}</span>
+                                </div>
+                                <div className="attachment-preview">
+                                    {activeSnippetContext.snippet.split('\n')[0].substring(0, 35)}...
+                                </div>
+                                <button className="attachment-clear-btn" onClick={onClearSnippetContext}>
+                                    <Codicon name="close" />
+                                </button>
+                            </div>
+                        )}
                         <div className="chat-input-wrapper">
                             <input
                                 className="chat-input"
                                 type="text"
-                                placeholder="Ask about this block..."
+                                placeholder={activeSnippetContext ? "Ask about this code..." : "Ask about this block..."}
                                 value={input}
                                 onChange={(e) => onInputChange(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && onSend()}
@@ -1696,7 +1758,7 @@ function ChatPanel({ messages, input, loading, activeBlock, onInputChange, onSen
                             <button
                                 className="chat-send-btn"
                                 onClick={onSend}
-                                disabled={loading || !input.trim()}
+                                disabled={loading || (!input.trim() && !activeSnippetContext)}
                             >
                                 <Codicon name="arrow-right" />
                             </button>

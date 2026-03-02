@@ -2264,3 +2264,90 @@
     color: var(--text-inverse);
     font-weight: 600;
 }
+
+/* ---- Snippet Attachment in Chat Input ---- */
+.chat-snippet-attachment {
+    background: #252526;
+    border: 1px solid #3c3c3c;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    position: relative;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.chat-snippet-attachment .attachment-content {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.chat-snippet-attachment .attachment-content .codicon {
+    color: var(--accent);
+    font-size: 13px;
+}
+
+.chat-snippet-attachment .attachment-preview {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    background: #1e1e1e;
+    padding: 4px 6px;
+    border-radius: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 0.8;
+}
+
+.chat-snippet-attachment .attachment-clear-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    transition: background 0.15s, color 0.15s;
+}
+
+.chat-snippet-attachment .attachment-clear-btn:hover {
+    background: #3c3c3c;
+    color: var(--error);
+}
+
+.chat-snippet-attachment .attachment-clear-btn .codicon {
+    font-size: 12px;
+}
+
+/* ---- Chat Message Context Pill ---- */
+.chat-message-context-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 10px;
+    font-family: var(--font-sans);
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+.chat-message-context-pill .codicon {
+    font-size: 11px;
+    color: var(--accent);
+}
