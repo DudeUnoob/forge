@@ -57,11 +57,23 @@ export const handler = async (event) => {
         );
 
         // Build messages array for Bedrock
-        const messages = history.map(h => ({
+        // Sanitize history: Bedrock requires alternating user/assistant starting with user
+        const rawHistory = history.map(h => ({
             role: h.role,
             content: h.content,
         }));
-        messages.push({ role: 'user', content: message });
+        const sanitized = [];
+        for (const msg of rawHistory) {
+            const lastRole = sanitized.length > 0 ? sanitized[sanitized.length - 1].role : null;
+            // Skip if same role as previous (would violate alternation)
+            if (msg.role === lastRole) continue;
+            sanitized.push(msg);
+        }
+        // Ensure history starts with a user message
+        while (sanitized.length > 0 && sanitized[0].role !== 'user') {
+            sanitized.shift();
+        }
+        const messages = [...sanitized, { role: 'user', content: message }];
 
         // Build system prompt with context
         const systemPrompt = PROMPTS.BLOCK_CHAT.system(blockSummary, keyCode, symbolTable);
