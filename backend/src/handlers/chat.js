@@ -73,6 +73,10 @@ export const handler = async (event) => {
         while (sanitized.length > 0 && sanitized[0].role !== 'user') {
             sanitized.shift();
         }
+        // Ensure history ends with an assistant message before appending the new user message
+        if (sanitized.length > 0 && sanitized[sanitized.length - 1].role === 'user') {
+            sanitized.pop();
+        }
         const messages = [...sanitized, { role: 'user', content: message }];
 
         // Build system prompt with context
