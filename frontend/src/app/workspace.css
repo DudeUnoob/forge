@@ -999,9 +999,29 @@
 
 .block-detail-sticky-footer {
     flex-shrink: 0;
-    padding: 8px 10px;
+    padding: 12px 10px;
     border-top: 1px solid var(--panel-border);
     background: var(--panel-bg);
+}
+
+.footer-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+}
+
+.footer-btn-compact {
+    flex: 1;
+    padding: 10px;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.footer-btn-primary {
+    flex: 2;
+    padding: 10px;
+    font-size: 14px;
 }
 
 /* ---- Modern Progress Bar ---- */
