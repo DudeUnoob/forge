@@ -999,9 +999,29 @@
 
 .block-detail-sticky-footer {
     flex-shrink: 0;
-    padding: 8px 10px;
+    padding: 12px 10px;
     border-top: 1px solid var(--panel-border);
     background: var(--panel-bg);
+}
+
+.footer-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+}
+
+.footer-btn-compact {
+    flex: 1;
+    padding: 10px;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.footer-btn-primary {
+    flex: 2;
+    padding: 10px;
+    font-size: 14px;
 }
 
 /* ---- Modern Progress Bar ---- */
@@ -2263,4 +2283,141 @@
     margin-bottom: 12px;
     color: var(--text-inverse);
     font-weight: 600;
+}
+
+/* ---- Code Snippet Tooltip ---- */
+.ask-snippet-tooltip {
+    position: absolute;
+    z-index: 100;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #252526;
+    color: #e0e0e0;
+    border: 1px solid #454545;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 11px;
+    font-family: var(--font-sans);
+    font-weight: 500;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    transform-origin: bottom center;
+    animation: tooltip-fade-in 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.ask-snippet-tooltip:hover {
+    background: #2d2d2d;
+    border-color: #555555;
+    color: #ffffff;
+}
+
+.ask-snippet-tooltip:active {
+    background: #333333;
+    transform: translateX(-50%) scale(0.97) !important;
+}
+
+.ask-snippet-tooltip .codicon {
+    font-size: 13px;
+    color: var(--accent);
+}
+
+@keyframes tooltip-fade-in {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(4px) scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0) scale(1);
+    }
+}
+
+/* ---- Snippet Attachment in Chat Input ---- */
+.chat-snippet-attachment {
+    background: #252526;
+    border: 1px solid #3c3c3c;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    position: relative;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.chat-snippet-attachment .attachment-content {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.chat-snippet-attachment .attachment-content .codicon {
+    color: var(--accent);
+    font-size: 13px;
+}
+
+.chat-snippet-attachment .attachment-preview {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    background: #1e1e1e;
+    padding: 4px 6px;
+    border-radius: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 0.8;
+}
+
+.chat-snippet-attachment .attachment-clear-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    transition: background 0.15s, color 0.15s;
+}
+
+.chat-snippet-attachment .attachment-clear-btn:hover {
+    background: #3c3c3c;
+    color: var(--error);
+}
+
+.chat-snippet-attachment .attachment-clear-btn .codicon {
+    font-size: 12px;
+}
+
+/* ---- Chat Message Context Pill ---- */
+.chat-message-context-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 10px;
+    font-family: var(--font-sans);
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+.chat-message-context-pill .codicon {
+    font-size: 11px;
+    color: var(--accent);
 }
