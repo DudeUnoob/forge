@@ -1,4 +1,3 @@
-
 # Forge
 
 **Forge** is an AI-based onboarding platform that turns a production codebase into a sequenced, modular learning experience—like "lego blocks" in an interactive walkthrough. Instead of reading scattered docs or relying on tribal knowledge, developers progress through blocks that explain a system's modules, dependencies, and intent, with contextual file navigation and AI assistance.
