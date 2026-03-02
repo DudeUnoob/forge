@@ -1555,18 +1555,12 @@ function StoryboardPanel({
 
     return (
         <div className="block-detail animate-fade-in">
-            {/* ── Sticky Header: Nav + Progress ── */}
+            {/* ── Sticky Header: Progress Only ── */}
             <div className="block-detail-sticky-header">
                 <div className="block-navigation">
-                    <button type="button" className="btn-secondary block-nav-btn" onClick={onGoPrev} disabled={!canGoPrev}>
-                        ← Previous
-                    </button>
                     <div className="block-nav-status">
-                        {Math.max(1, activeBlockIndex + 1)} / {blocks.length}
+                        Step {Math.max(1, activeBlockIndex + 1)} of {blocks.length}
                     </div>
-                    <button type="button" className="btn-secondary block-nav-btn" onClick={onGoNext} disabled={!canGoNext}>
-                        Next →
-                    </button>
                 </div>
                 <div className="block-progress-bar">
                     <div className="block-progress-fill" style={{ width: `${progressPercent}%` }} />
@@ -1688,15 +1682,43 @@ function StoryboardPanel({
                 </div>
             </div>
 
-            {/* ── Sticky Footer: Mark Complete ── */}
+            {/* ── Sticky Footer: Smart Navigation ── */}
             <div className="block-detail-sticky-footer">
-                <button
-                    className={currentBlockComplete ? 'btn-secondary' : 'btn-primary'}
-                    onClick={() => onToggleComplete(currentBlock.blockId)}
-                    style={{ width: '100%' }}
-                >
-                    {currentBlockComplete ? '↺ Mark Incomplete' : '✓ Mark as Complete'}
-                </button>
+                <div className="footer-actions">
+                    <button
+                        className="btn-secondary footer-btn-compact"
+                        onClick={onGoPrev}
+                        disabled={!canGoPrev}
+                    >
+                        ← Previous
+                    </button>
+
+                    {!currentBlockComplete ? (
+                        <button
+                            className="btn-primary footer-btn-primary"
+                            onClick={() => onToggleComplete(currentBlock.blockId)}
+                        >
+                            ✓ Mark as Complete
+                        </button>
+                    ) : (
+                        canGoNext ? (
+                            <button
+                                className="btn-primary footer-btn-primary"
+                                onClick={onGoNext}
+                            >
+                                Continue to Next Block →
+                            </button>
+                        ) : (
+                            <button
+                                className="btn-secondary footer-btn-primary"
+                                disabled
+                                style={{ opacity: 0.7 }}
+                            >
+                                ✓ All Steps Completed
+                            </button>
+                        )
+                    )}
+                </div>
             </div>
         </div>
     );
