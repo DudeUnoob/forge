@@ -106,13 +106,33 @@ for i in range(0, len(items), 25):
         key = {attr: item[attr] for attr in key_attrs}
         requests.append({'DeleteRequest': {'Key': key}})
     payload = {table: requests}
-    print(json.dumps(payload))
-" | while IFS= read -r batch; do
-    aws dynamodb batch-write-item \
-      --region "$REGION" \
-      --request-items "$batch" \
-      --output text > /dev/null
-    count=$((count + 25))
+    # Output "<batch_size>\t<payload_json>" so the shell can track counts accurately.
+    print(f\"{len(requests)}\\t{json.dumps(payload)}\")
+" | while IFS=$'\t' read -r batch_size batch; do
+    # Retry loop for unprocessed items returned by DynamoDB
+    retries=0
+    max_retries=5
+    backoff=1
+    request_items="$batch"
+    while :; do
+      result=$(aws dynamodb batch-write-item \
+        --region "$REGION" \
+        --request-items "$request_items" \
+        --output json)
+      unprocessed=$(echo "$result" | python3 -c "import sys, json; data = json.load(sys.stdin); ui = data.get('UnprocessedItems') or {}; print(json.dumps(ui) if ui else '')")
+      if [[ -z "$unprocessed" || "$unprocessed" == "{}" ]]; then
+        break
+      fi
+      retries=$((retries + 1))
+      if (( retries > max_retries )); then
+        echo "   ! Warning: giving up on some unprocessed items after $max_retries retries for table $table" >&2
+        break
+      fi
+      sleep "$backoff"
+      backoff=$((backoff * 2))
+      request_items="$unprocessed"
+    done
+    count=$((count + batch_size))
   done
 
   echo "   ✓ Done."
