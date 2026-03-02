@@ -9,6 +9,7 @@ import { getText } from '../lib/s3.js';
 import { invokeChat } from '../lib/bedrock.js';
 import { PROMPTS } from '../lib/prompts.js';
 import { success, error, parseBody } from '../shared/response.js';
+import { buildFencedSnippet } from '../shared/format.js';
 
 const STORYBOARDS_TABLE = process.env.STORYBOARDS_TABLE;
 const CHAT_TABLE = process.env.CHAT_TABLE;
@@ -37,7 +38,7 @@ export const handler = async (event) => {
             const content = await getText(`repos/${repoId}/files/${filePath}`);
             if (content) {
                 const truncated = content.split('\n').slice(0, 100).join('\n');
-                codeSnippets.push(`### ${filePath}\n\`\`\`\n${truncated}\n\`\`\``);
+                codeSnippets.push(buildFencedSnippet(filePath, truncated));
             }
         }
         const keyCode = codeSnippets.join('\n\n') || 'No source files available for this block.';

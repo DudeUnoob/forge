@@ -14,6 +14,7 @@ import { getJson, getText, uploadJson, uploadText } from '../lib/s3.js';
 import { invokeModel } from '../lib/bedrock.js';
 import { PROMPTS } from '../lib/prompts.js';
 import { success, error, parseBody } from '../shared/response.js';
+import { buildFencedSnippet } from '../shared/format.js';
 
 const REPOS_TABLE = process.env.REPOS_TABLE;
 const STORYBOARDS_TABLE = process.env.STORYBOARDS_TABLE;
@@ -483,7 +484,7 @@ async function getCachedFileSnippet(repoId, filePath, snippetCache) {
         }
 
         const truncated = truncateFileForPrompt(content);
-        return `### ${filePath}\n\`\`\`\n${truncated}\n\`\`\``;
+        return buildFencedSnippet(filePath, truncated);
     })();
 
     snippetCache.set(cacheKey, loadPromise);
