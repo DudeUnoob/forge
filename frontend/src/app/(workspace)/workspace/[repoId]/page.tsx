@@ -634,13 +634,13 @@ export default function WorkspacePage() {
     }, []);
 
     const handleAskAboutSnippet = useCallback((snippet: string, lang: string, filePath: string) => {
-        setActiveSnippetContext({ snippet, lang, filePath });
-
         // Ensure a block is active so the chat is visible
         if (!activeBlock && visibleBlocks.length > 0) {
             activateBlock(visibleBlocks[0]);
         }
 
+        // Set the snippet context after activating the block so it is not cleared
+        setActiveSnippetContext({ snippet, lang, filePath });
         setTimeout(() => {
             const chatInputEl = document.querySelector('.chat-input') as HTMLInputElement | null;
             if (chatInputEl) {
