@@ -89,6 +89,13 @@ const PREFETCH_BATCH_SIZE = 20;
 const PREFETCH_TREE_SAMPLE_SIZE = 16;
 const PREFETCH_BLOCK_SAMPLE_SIZE = 12;
 
+/** Returns a backtick fence string long enough that it won't appear inside `code`. */
+function getCodeFence(code: string): string {
+    const matches = code.match(/`+/g);
+    const maxRun = matches ? Math.max(...matches.map(s => s.length)) : 0;
+    return '`'.repeat(Math.max(3, maxRun + 1));
+}
+
 // =============== Main Workspace Component ===============
 
 export default function WorkspacePage() {
@@ -592,15 +599,16 @@ export default function WorkspacePage() {
 
     // ---- Send chat message ----
     const sendChat = useCallback(async () => {
-        if (!chatInput.trim() || !storyboardId || !activeBlock) return;
+        if ((!chatInput.trim() && !activeSnippetContext) || !storyboardId || !activeBlock) return;
 
         // Optionally attach the snippet block context visually and in API
         let apiContent = chatInput.trim();
         const snippetToAttach = activeSnippetContext;
 
         if (snippetToAttach) {
-            // Implicit syntax block sent to AI
-            apiContent = `[Context from file: ${snippetToAttach.filePath}]\n\`\`\`${snippetToAttach.lang}\n${snippetToAttach.snippet}\n\`\`\`\n\n${apiContent}`;
+            // Use a dynamic fence length so that backticks inside the snippet never break the fence
+            const fence = getCodeFence(snippetToAttach.snippet);
+            apiContent = `[Context from file: ${snippetToAttach.filePath}]\n${fence}${snippetToAttach.lang}\n${snippetToAttach.snippet}\n${fence}\n\n${apiContent}`;
         }
 
         const userMsg: ChatMessage = {
@@ -634,12 +642,13 @@ export default function WorkspacePage() {
     }, []);
 
     const handleAskAboutSnippet = useCallback((snippet: string, lang: string, filePath: string) => {
-        setActiveSnippetContext({ snippet, lang, filePath });
-
-        // Ensure a block is active so the chat is visible
+        // Activate a block first so that activateBlock doesn't clear the snippet context afterwards
         if (!activeBlock && visibleBlocks.length > 0) {
             activateBlock(visibleBlocks[0]);
         }
+
+        // Set snippet context after activating the block so it is not cleared
+        setActiveSnippetContext({ snippet, lang, filePath });
 
         setTimeout(() => {
             const chatInputEl = document.querySelector('.chat-input') as HTMLInputElement | null;

@@ -483,7 +483,8 @@ async function getCachedFileSnippet(repoId, filePath, snippetCache) {
         }
 
         const truncated = truncateFileForPrompt(content);
-        return `### ${filePath}\n\`\`\`\n${truncated}\n\`\`\``;
+        const fence = getCodeFence(truncated);
+        return `### ${filePath}\n${fence}\n${truncated}\n${fence}`;
     })();
 
     snippetCache.set(cacheKey, loadPromise);
@@ -505,6 +506,12 @@ function truncateFileForPrompt(content) {
     const joined = lines.join('\n');
     if (joined.length <= MAX_FILE_SNIPPET_CHARS) return joined;
     return `${joined.slice(0, MAX_FILE_SNIPPET_CHARS)}\n...`;
+}
+
+function getCodeFence(code) {
+    const matches = typeof code === 'string' ? code.match(/`+/g) : null;
+    const maxRun = matches ? Math.max(...matches.map(s => s.length)) : 0;
+    return '`'.repeat(Math.max(3, maxRun + 1));
 }
 
 function truncateText(value, maxChars) {

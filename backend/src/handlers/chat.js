@@ -73,6 +73,12 @@ export const handler = async (event) => {
         while (sanitized.length > 0 && sanitized[0].role !== 'user') {
             sanitized.shift();
         }
+        // Ensure history ends with an assistant message before appending the new user message.
+        // If the last stored message is a user turn (e.g. a previous request that lost its reply),
+        // drop it so the sequence remains strictly alternating; Bedrock rejects consecutive same-role messages.
+        if (sanitized.length > 0 && sanitized[sanitized.length - 1].role === 'user') {
+            sanitized.pop();
+        }
         const messages = [...sanitized, { role: 'user', content: message }];
 
         // Build system prompt with context
