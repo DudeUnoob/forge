@@ -1266,7 +1266,7 @@ function CodeViewer({ content, filePath, highlightedLines, onAskAboutSnippet }: 
             <SyntaxHighlighter
                 language={getLanguageFromPath(filePath)}
                 style={vscDarkPlus}
-                customStyle={{ margin: 0, padding: '10px 0', background: 'transparent', fontSize: '13px', lineHeight: '1.5' }}
+                customStyle={{ margin: 0, padding: '10px 0', background: 'transparent', border: 'none', borderRadius: 0, boxShadow: 'none', fontSize: '13px', lineHeight: '1.5' }}
                 showLineNumbers={true}
                 lineNumberStyle={{ minWidth: '3.5em', paddingRight: '1em', color: '#6e7681', textAlign: 'right' }}
                 wrapLines={true}
@@ -1850,7 +1850,7 @@ function ChatPanel({
                             <button
                                 className="chat-send-btn"
                                 onClick={onSend}
-                                disabled={loading || (!input.trim() && !activeSnippetContext)}
+                                disabled={loading || !input.trim()}
                             >
                                 <Codicon name="arrow-right" />
                             </button>
