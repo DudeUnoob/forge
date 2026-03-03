@@ -1850,7 +1850,7 @@ function ChatPanel({
                             <button
                                 className="chat-send-btn"
                                 onClick={onSend}
-                                disabled={loading || (!input.trim() && !activeSnippetContext)}
+                                disabled={loading || !input.trim()}
                             >
                                 <Codicon name="arrow-right" />
                             </button>
