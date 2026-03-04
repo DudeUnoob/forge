@@ -1947,12 +1947,16 @@ function CommandPalette({ onClose, onToggleSidebar, onSwitchRole, fileTree, seti
         }
         if (e.key === 'ArrowDown') {
             e.preventDefault();
-            setSelectedIndex(prev => Math.min(prev + 1, visibleItems.length - 1));
+            if (visibleItems.length > 0) {
+                setSelectedIndex(prev => Math.min(prev + 1, visibleItems.length - 1));
+            }
             return;
         }
         if (e.key === 'ArrowUp') {
             e.preventDefault();
-            setSelectedIndex(prev => Math.max(prev - 1, 0));
+            if (visibleItems.length > 0) {
+                setSelectedIndex(prev => Math.max(prev - 1, 0));
+            }
             return;
         }
         if (e.key === 'Enter' && visibleItems.length > 0) {
