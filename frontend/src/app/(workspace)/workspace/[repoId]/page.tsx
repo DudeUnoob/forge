@@ -1564,6 +1564,12 @@ function StoryboardPanel({
     onGoPrev: () => void;
     onGoNext: () => void;
 }) {
+
+    const scrollableRef = useRef<HTMLDivElement>(null);
+    
+    useEffect(() => {
+        scrollableRef.current?.scrollTo(0, 0);
+    }, [activeBlock]);
     if (blocks.length === 0) {
         return (
             <div className="empty-state" style={{ height: '100%' }}>
@@ -1596,7 +1602,7 @@ function StoryboardPanel({
             </div>
 
             {/* ── Scrollable Content ── */}
-            <div className="block-detail-scrollable">
+            <div className="block-detail-scrollable" ref={scrollableRef}>
                 {nextBlockLocked && (
                     <div className="sequential-hint">
                         <Codicon name="lock" />
