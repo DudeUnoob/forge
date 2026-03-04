@@ -15,11 +15,17 @@ New engineers often spend weeks onboarding through messy documentation and unwri
 ## What it does
 
 - **Import a repo** — Point Forge at a GitHub link. It downloads the repo, stores the files, and can reuse a previous analysis of the same version so you don't wait twice.
+
 - **Analyze & organize** — Forge automatically maps out the codebase's structure — its folders, files, and how different pieces depend on each other — so it understands how everything fits together.
+
 - **Generate a storyboard** — AI produces 5–10 ordered "blocks," each with a learning goal, a plain-language explanation, the key files involved, visual diagrams, and suggested questions. Every block is grounded in the actual code, not generic advice.
+
 - **Walk through & explore** — A code-editor-style workspace with a file browser, a read-only code viewer, and a storyboard panel. You move through blocks in order (or jump around), open the referenced files, and see diagrams and explanations all in one place.
+
 - **Chat in context** — For each block, you can ask questions in a focused chat. The AI only has access to that block's scope and related code, so answers stay accurate and relevant.
+
 - **Role-based paths** — Choose a learning path (frontend, backend, infrastructure, or full-stack). The storyboard reorders and adjusts emphasis so you see what matters most for your role first.
+
 - **Track progress** — Completion and time spent per block are tracked, so you (and whoever manages onboarding) can see how far someone has gotten and where they might be stuck.
 
 Import, analysis, and storyboard generation all happen **in the background**: you can start exploring the workspace right away while Forge finishes processing. The UI shows the current stage (downloading → analyzing → generating storyboard → ready) and stays usable throughout.
@@ -29,8 +35,11 @@ Import, analysis, and storyboard generation all happen **in the background**: yo
 ## Who it's for
 
 - **New hires & junior engineers** — A guided tour of the system with safe, focused Q&A instead of scattered docs.
+
 - **Engineers switching teams** — A tailored path that skips what you don't need and highlights the parts that matter for your role.
+
 - **Tech leads & onboarding owners** — Reusable onboarding content and less time spent answering the same questions.
+
 - **Distributed teams** — Self-serve onboarding that captures how the system is designed and stays up to date with the repo.
 
 ---
@@ -38,8 +47,11 @@ Import, analysis, and storyboard generation all happen **in the background**: yo
 ## Goals
 
 - **Reduce onboarding time** by generating a structured, accurate learning path directly from the repository.
+
 - **Increase comprehension and confidence** through focused AI chat that's grounded in the code you're learning about.
+
 - **Support role-based paths** (frontend, backend, infrastructure, full-stack) so engineers see what's relevant first.
+
 - **Stay cost-conscious** with serverless cloud infrastructure, caching, and pay-as-you-go AI usage.
 
 ---
