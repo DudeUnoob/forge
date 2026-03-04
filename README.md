@@ -1,58 +1,102 @@
-# Forge
+# 🔨 Forge
 
-**Forge** is an AI-based onboarding platform that turns a production codebase into a sequenced, modular learning experience—like "lego blocks" in an interactive walkthrough. Instead of reading scattered docs or relying on tribal knowledge, developers progress through blocks that explain a system's modules, dependencies, and intent, with contextual file navigation and AI assistance.
+**Forge** is an AI-powered onboarding platform that turns any production codebase into a structured, interactive learning experience — like guided "lego blocks" for understanding a system.
 
-*Built for the 10,000 AIdeas (AWS) competition.*
-
----
-
-## What it's about
-
-New engineers often spend weeks onboarding through linear, unstructured documentation and tribal knowledge. That leads to slow time-to-first-contribution, heavy dependence on senior engineers, and knowledge loss when experienced teammates leave. AI-assisted development can also encourage "vibe coding"—shipping code without understanding *why* it works—which increases bugs and risk. Forge addresses this with a **pedagogy-first** tool that focuses on understanding: it converts a repository into an interactive storyboard that teaches the system step-by-step, with each block explained in context by AI and linked directly to real code.
+> *Built for the 10,000 AIdeas (AWS) competition.*
 
 ---
 
-## What it does
+## 📖 Table of Contents
 
-- **Ingest a repo** — Point Forge at a Git URL. It clones the repo, stores files, and (for the same public GitHub commit) can reuse an existing parsed build so you don't wait twice.
-- **Parse & structure** — A parser builds a module and dependency graph (AST-style) so the system understands how the codebase is organized.
-- **Generate a storyboard** — AI (Amazon Bedrock) produces 5–10 ordered "blocks": each has a learning objective, explanation, key files, key symbols, Mermaid diagrams, and suggested questions. Blocks are grounded in the actual repo, not generic advice.
-- **Walk through & explore** — A VS Code–style workspace: file explorer, read-only code view, and a storyboard panel. You move through blocks in order (or jump), open linked files, and see diagrams and explanations in one place.
-- **Chat in context** — For each block, you can ask questions in a **block-scoped** chat. The AI is constrained to that block and its dependencies, so answers stay grounded in the code and reduce hallucinations.
-- **Role-based paths** — Choose a path (frontend, backend, infra, full-stack). The storyboard order and emphasis adapt so you see what's relevant to your role first.
-- **Track progress** — Completion per block and time-on-block are tracked so you (and onboarding owners) can see how far someone's gotten and where they might be stuck.
-
-Ingest, parse, and storyboard generation run **asynchronously**: you can enter the workspace quickly; cloning, parsing, and AI generation continue in the background while you browse files. The UI shows pipeline state (cloning → parsing → storyboard → ready) and stays usable throughout.
+- [What's the Problem?](#-whats-the-problem)
+- [What It Does](#-what-it-does)
+- [Who It's For](#-who-its-for)
+- [Goals](#-goals)
+- [Getting Started](#-getting-started)
+- [Tech Stack](#-tech-stack)
+- [Team](#-team)
 
 ---
 
-## Who it's for
+## 🤔 What's the Problem?
 
-- **New hires & junior engineers** — A guided mental model of the system and safe, contextual Q&A instead of ad-hoc docs.
-- **Cross-functional engineers** — A curated path that skips irrelevant depth and highlights the interfaces that matter.
-- **Tech leads & onboarding owners** — Reusable onboarding assets and less repetitive mentoring.
-- **Distributed teams** — Asynchronous onboarding that preserves architectural intent and stays in sync with the repo.
+New engineers often spend weeks onboarding through scattered docs and tribal knowledge. This causes:
 
----
+- 🐌 Slow time-to-first-contribution
+- 🔗 Heavy dependence on senior engineers
+- 📉 Knowledge loss when experienced teammates leave
+- 🤖 "Vibe coding" — shipping code without understanding *why* it works
 
-## Goals
-
-- **Reduce onboarding time** by producing a structured, accurate learning path derived directly from the repository.
-- **Increase comprehension and confidence** via block-scoped AI chat grounded in the current module and its dependencies.
-- **Support role-based paths** (frontend, backend, infra, full-stack) so engineers see what's relevant first.
-- **Stay cost-conscious for MVP** with serverless AWS, caching, and on-demand usage (e.g. Bedrock).
+**Forge fixes this** with a pedagogy-first approach: it converts a repository into an interactive storyboard that teaches the system step-by-step, with each block explained in context by AI and linked directly to real code.
 
 ---
 
-## Tech at a glance
+## ⚙️ What It Does
 
-- **Frontend:** Next.js 16, React 19, TypeScript — VS Code–style layout (file tree, editor, storyboard + chat panel).
-- **Backend:** AWS SAM — API Gateway, Lambda (Node.js 20), DynamoDB, S3, Amazon Bedrock (Nova 2 Lite). Parsing uses tree-sitter; storyboard and chat use Bedrock with constrained context.
+| Feature | Description |
+|---|---|
+| **Ingest a repo** | Point Forge at a Git URL — it clones, stores, and caches the build so you don't wait twice. |
+| **Parse & structure** | Builds a module and dependency graph (AST-style) so the system understands the codebase layout. |
+| **Generate a storyboard** | AI (Amazon Bedrock) produces 5–10 ordered learning blocks, each with objectives, diagrams, key files, and suggested questions. |
+| **Walk through & explore** | A VS Code–style workspace with a file explorer, read-only code view, and storyboard panel. |
+| **Chat in context** | Ask questions in a **block-scoped** chat — answers stay grounded in the code and reduce hallucinations. |
+| **Role-based paths** | Choose frontend, backend, infra, or full-stack. The storyboard adapts to show what's most relevant. |
+| **Track progress** | Completion per block and time-on-block are tracked for you and onboarding owners. |
 
-For **setup, run, and deploy** instructions, see [backend/README.md](backend/README.md) and [frontend/README.md](frontend/README.md). Repo layout: `frontend/` (Next.js app), `backend/` (SAM template + Lambda handlers), and [PRD/Forge_PRD.md](PRD/Forge_PRD.md) for the full product requirements document.
+> **Everything runs asynchronously.** Cloning, parsing, and AI generation happen in the background while you browse files. The UI shows live pipeline state: `cloning → parsing → storyboard → ready`.
 
 ---
 
-## Team
+## 👥 Who It's For
+
+| Audience | Benefit |
+|---|---|
+| **New hires & junior engineers** | Guided mental model + safe, contextual Q&A |
+| **Cross-functional engineers** | Curated paths that skip irrelevant depth |
+| **Tech leads & onboarding owners** | Reusable assets and less repetitive mentoring |
+| **Distributed teams** | Async onboarding that stays in sync with the repo |
+
+---
+
+## 🎯 Goals
+
+- **⏱ Reduce onboarding time** — structured learning paths derived directly from the repository
+- **💡 Increase comprehension** — block-scoped AI chat grounded in the current module
+- **🛤 Role-based paths** — engineers see what's relevant to them first
+- **💸 Stay cost-conscious** — serverless AWS, caching, and on-demand Bedrock usage
+
+---
+
+## 🚀 Getting Started
+
+1. **Set up the backend** → [backend/README.md](backend/README.md)
+2. **Set up the frontend** → [frontend/README.md](frontend/README.md)
+3. **Read the full PRD** → [PRD/Forge_PRD.md](PRD/Forge_PRD.md)
+
+### Repo Layout
+
+```
+forge/
+├── frontend/     # Next.js app
+├── backend/      # AWS SAM template + Lambda handlers
+└── PRD/          # Product requirements document
+```
+
+---
+
+## 🛠 Tech Stack
+
+| Layer | Technology |
+|---|---|
+| **Frontend** | Next.js 16, React 19, TypeScript |
+| **Backend** | AWS SAM, API Gateway, Lambda (Node.js 20) |
+| **Database** | DynamoDB |
+| **Storage** | S3 |
+| **AI** | Amazon Bedrock (Nova 2 Lite) |
+| **Parsing** | tree-sitter |
+
+---
+
+## 👨‍💻 Team
 
 **Damodar Kamani** · **Agastya Singh** · **Krishna Perla** · **Bowen Xia**
