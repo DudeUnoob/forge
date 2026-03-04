@@ -8,21 +8,51 @@
 
 ## What it's about
 
-New engineers often spend weeks onboarding through linear, unstructured documentation and tribal knowledge. That leads to slow time-to-first-contribution, heavy dependence on senior engineers, and knowledge loss when experienced teammates leave. AI-assisted development can also encourage "vibe coding"—shipping code without understanding *why* it works—which increases bugs and risk. Forge addresses this with a **pedagogy-first** tool that focuses on understanding: it converts a repository into an interactive storyboard that teaches the system step-by-step, with each block explained in context by AI and linked directly to real code.
+New engineers often spend weeks onboarding through linear, unstructured documentation and tribal knowledge.
+
+That creates predictable pain:
+- Slow time-to-first-contribution
+- Heavy dependence on senior engineers
+- Knowledge loss when experienced teammates leave
+- "Vibe coding" risk from AI-assisted development (shipping without understanding *why* code works)
+
+Forge addresses this with a **pedagogy-first** approach:
+- Converts a repository into an interactive, step-by-step storyboard
+- Explains each block with AI in context
+- Links explanations directly to real code
 
 ---
 
 ## What it does
 
-- **Ingest a repo** — Point Forge at a Git URL. It clones the repo, stores files, and (for the same public GitHub commit) can reuse an existing parsed build so you don't wait twice.
-- **Parse & structure** — A parser builds a module and dependency graph (AST-style) so the system understands how the codebase is organized.
-- **Generate a storyboard** — AI (Amazon Bedrock) produces 5–10 ordered "blocks": each has a learning objective, explanation, key files, key symbols, Mermaid diagrams, and suggested questions. Blocks are grounded in the actual repo, not generic advice.
-- **Walk through & explore** — A VS Code–style workspace: file explorer, read-only code view, and a storyboard panel. You move through blocks in order (or jump), open linked files, and see diagrams and explanations in one place.
-- **Chat in context** — For each block, you can ask questions in a **block-scoped** chat. The AI is constrained to that block and its dependencies, so answers stay grounded in the code and reduce hallucinations.
-- **Role-based paths** — Choose a path (frontend, backend, infra, full-stack). The storyboard order and emphasis adapt so you see what's relevant to your role first.
-- **Track progress** — Completion per block and time-on-block are tracked so you (and onboarding owners) can see how far someone's gotten and where they might be stuck.
+- **Ingest a repo**
+  - Point Forge at a Git URL
+  - Clone and store files
+  - Reuse an existing parsed build for the same public GitHub commit (so you don't wait twice)
+- **Parse & structure**
+  - Build a module and dependency graph (AST-style)
+  - Understand how the codebase is organized
+- **Generate a storyboard**
+  - Use AI (Amazon Bedrock) to produce 5–10 ordered blocks
+  - Include a learning objective, explanation, key files/symbols, Mermaid diagrams, and suggested questions
+  - Keep outputs grounded in the actual repo, not generic advice
+- **Walk through & explore**
+  - Use a VS Code–style workspace (file explorer, read-only code view, storyboard panel)
+  - Move through blocks in order (or jump), open linked files, and view diagrams/explanations together
+- **Chat in context**
+  - Ask questions in a **block-scoped** chat for each block
+  - Constrain AI to that block and its dependencies to reduce hallucinations
+- **Role-based paths**
+  - Choose frontend, backend, infra, or full-stack
+  - Adapt storyboard order and emphasis to what matters first for that role
+- **Track progress**
+  - Track completion per block and time-on-block
+  - Help learners and onboarding owners see progress and potential blockers
 
-Ingest, parse, and storyboard generation run **asynchronously**: you can enter the workspace quickly; cloning, parsing, and AI generation continue in the background while you browse files. The UI shows pipeline state (cloning → parsing → storyboard → ready) and stays usable throughout.
+Ingest, parse, and storyboard generation run **asynchronously**:
+- You can enter the workspace quickly
+- Cloning, parsing, and AI generation continue in the background while you browse files
+- The UI shows pipeline state (`cloning → parsing → storyboard → ready`) and stays usable throughout
 
 ---
 
