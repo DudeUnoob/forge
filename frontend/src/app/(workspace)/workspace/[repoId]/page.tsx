@@ -1926,10 +1926,15 @@ function CommandPalette({ onClose, onToggleSidebar, onSwitchRole, fileTree, seti
 
     const visibleItems = filtered.slice(0, 15);
 
-    // Reset selection when filter changes
+    // Reset selection when query changes
     useEffect(() => {
         setSelectedIndex(0);
     }, [query]);
+
+    // Clamp selectedIndex when visibleItems length changes (e.g. fileTree update while palette is open)
+    useEffect(() => {
+        setSelectedIndex(prev => (visibleItems.length === 0 ? 0 : Math.min(prev, visibleItems.length - 1)));
+    }, [visibleItems.length]);
 
     // Auto-scroll the selected item into view
     useEffect(() => {
@@ -1955,9 +1960,12 @@ function CommandPalette({ onClose, onToggleSidebar, onSwitchRole, fileTree, seti
             setSelectedIndex(prev => Math.max(prev - 1, 0));
             return;
         }
-        if (e.key === 'Enter' && visibleItems.length > 0) {
-            visibleItems[selectedIndex]?.action();
-            onClose();
+        if (e.key === 'Enter') {
+            const item = visibleItems[selectedIndex];
+            if (item) {
+                item.action();
+                onClose();
+            }
         }
     };
 
