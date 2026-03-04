@@ -271,6 +271,7 @@ export default function WorkspacePage() {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
+
     // Reset caches when switching repositories
     useEffect(() => {
         fileContentCacheRef.current.clear();
@@ -648,6 +649,28 @@ export default function WorkspacePage() {
             }
         }, 50);
     }, [activeBlock, visibleBlocks, activateBlock]);
+
+    // Ctrl/Cmd + J → Ask about selected snippet
+    useEffect(() => {
+        const handleCtrlJ = (e: KeyboardEvent) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'j') {
+                e.preventDefault();
+                const selection = window.getSelection();
+                if (!selection || selection.isCollapsed) return;
+                const text = selection.toString().trim();
+                if (!text) return;
+
+                const file = activeFileIndex >= 0 ? openFiles[activeFileIndex] : null;
+                if (!file) return;
+
+                const lang = getLanguageFromPath(file.path);
+                handleAskAboutSnippet(text, lang, file.path);
+                selection.removeAllRanges();
+            }
+        };
+        window.addEventListener('keydown', handleCtrlJ);
+        return () => window.removeEventListener('keydown', handleCtrlJ);
+    }, [handleAskAboutSnippet, openFiles, activeFileIndex]);
 
     if (loading) {
         return (
@@ -1260,7 +1283,7 @@ function CodeViewer({ content, filePath, highlightedLines, onAskAboutSnippet }: 
                         window.getSelection()?.removeAllRanges();
                     }}
                 >
-                    <Codicon name="comment-discussion" style={{ marginRight: 6 }} /> Ask about this snippet
+                    <Codicon name="comment-discussion" style={{ marginRight: 6 }} /> Ask about this snippet <span style={{ opacity: 0.5, marginLeft: 4, fontSize: 10 }}>⌘J</span>
                 </button>
             )}
             <SyntaxHighlighter
@@ -1872,7 +1895,9 @@ function CommandPalette({ onClose, onToggleSidebar, onSwitchRole, fileTree, seti
     onOpenFile: (path: string) => void;
 }) {
     const [query, setQuery] = useState('');
+    const [selectedIndex, setSelectedIndex] = useState(0);
     const inputRef = useRef<HTMLInputElement>(null);
+    const resultsRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         inputRef.current?.focus();
@@ -1899,6 +1924,43 @@ function CommandPalette({ onClose, onToggleSidebar, onSwitchRole, fileTree, seti
         ? allCommands.filter(c => c.label.toLowerCase().includes(query.toLowerCase()))
         : allCommands;
 
+    const visibleItems = filtered.slice(0, 15);
+
+    // Reset selection when filter changes
+    useEffect(() => {
+        setSelectedIndex(0);
+    }, [query]);
+
+    // Auto-scroll the selected item into view
+    useEffect(() => {
+        if (!resultsRef.current) return;
+        const items = resultsRef.current.querySelectorAll('.command-palette-item');
+        if (items[selectedIndex]) {
+            items[selectedIndex].scrollIntoView({ block: 'nearest' });
+        }
+    }, [selectedIndex]);
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Escape') {
+            onClose();
+            return;
+        }
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setSelectedIndex(prev => Math.min(prev + 1, visibleItems.length - 1));
+            return;
+        }
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setSelectedIndex(prev => Math.max(prev - 1, 0));
+            return;
+        }
+        if (e.key === 'Enter' && visibleItems.length > 0) {
+            visibleItems[selectedIndex]?.action();
+            onClose();
+        }
+    };
+
     return (
         <div className="command-palette-overlay" onClick={onClose}>
             <div className="command-palette" onClick={e => e.stopPropagation()}>
@@ -1909,18 +1971,16 @@ function CommandPalette({ onClose, onToggleSidebar, onSwitchRole, fileTree, seti
                         placeholder="Type a command or file name..."
                         value={query}
                         onChange={e => setQuery(e.target.value)}
-                        onKeyDown={e => {
-                            if (e.key === 'Escape') onClose();
-                            if (e.key === 'Enter' && filtered.length > 0) filtered[0].action();
-                        }}
+                        onKeyDown={handleKeyDown}
                     />
                 </div>
-                <div className="command-palette-results">
-                    {filtered.slice(0, 15).map((cmd, i) => (
+                <div className="command-palette-results" ref={resultsRef}>
+                    {visibleItems.map((cmd, i) => (
                         <div
                             key={i}
-                            className={`command-palette-item ${i === 0 ? 'selected' : ''}`}
+                            className={`command-palette-item ${i === selectedIndex ? 'selected' : ''}`}
                             onClick={cmd.action}
+                            onMouseEnter={() => setSelectedIndex(i)}
                         >
                             <span className="command-palette-item-icon">{cmd.icon}</span>
                             <span className="command-palette-item-label">{cmd.label}</span>
