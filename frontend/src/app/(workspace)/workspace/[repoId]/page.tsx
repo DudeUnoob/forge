@@ -653,20 +653,24 @@ export default function WorkspacePage() {
     // Ctrl/Cmd + J → Ask about selected snippet
     useEffect(() => {
         const handleCtrlJ = (e: KeyboardEvent) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === 'j') {
-                e.preventDefault();
-                const selection = window.getSelection();
-                if (!selection || selection.isCollapsed) return;
-                const text = selection.toString().trim();
-                if (!text) return;
+            if (!((e.metaKey || e.ctrlKey) && e.key === 'j')) return;
 
-                const file = activeFileIndex >= 0 ? openFiles[activeFileIndex] : null;
-                if (!file) return;
+            const selection = window.getSelection();
+            if (!selection || selection.isCollapsed) return;
+            const text = selection.toString().trim();
+            if (!text) return;
 
-                const lang = getLanguageFromPath(file.path);
-                handleAskAboutSnippet(text, lang, file.path);
-                selection.removeAllRanges();
-            }
+            const codeViewer = document.querySelector('.code-viewer');
+            if (!codeViewer || !codeViewer.contains(selection.anchorNode) || !codeViewer.contains(selection.focusNode)) return;
+
+            e.preventDefault();
+
+            const file = activeFileIndex >= 0 ? openFiles[activeFileIndex] : null;
+            if (!file) return;
+
+            const lang = getLanguageFromPath(file.path);
+            handleAskAboutSnippet(text, lang, file.path);
+            selection.removeAllRanges();
         };
         window.addEventListener('keydown', handleCtrlJ);
         return () => window.removeEventListener('keydown', handleCtrlJ);
