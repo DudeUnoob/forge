@@ -8,7 +8,18 @@
 
 ## What it's about
 
-New engineers often spend weeks onboarding through linear, unstructured documentation and tribal knowledge. That leads to slow time-to-first-contribution, heavy dependence on senior engineers, and knowledge loss when experienced teammates leave. AI-assisted development can also encourage "vibe coding"—shipping code without understanding *why* it works—which increases bugs and risk. Forge addresses this with a **pedagogy-first** tool that focuses on understanding: it converts a repository into an interactive storyboard that teaches the system step-by-step, with each block explained in context by AI and linked directly to real code.
+New engineers often spend weeks onboarding through linear, unstructured documentation and tribal knowledge.
+
+That creates predictable pain:
+- Slow time-to-first-contribution
+- Heavy dependence on senior engineers
+- Knowledge loss when experienced teammates leave
+- "Vibe coding" risk from AI-assisted development (shipping without understanding *why* code works)
+
+Forge addresses this with a **pedagogy-first** approach:
+- Converts a repository into an interactive, step-by-step storyboard
+- Explains each block with AI in context
+- Links explanations directly to real code
 
 ---
 
@@ -22,7 +33,10 @@ New engineers often spend weeks onboarding through linear, unstructured document
 - **Role-based paths** — Choose a path (frontend, backend, infra, full-stack). The storyboard order and emphasis adapt so you see what's relevant to your role first.
 - **Track progress** — Completion per block and time-on-block are tracked so you (and onboarding owners) can see how far someone's gotten and where they might be stuck.
 
-Ingest, parse, and storyboard generation run **asynchronously**: you can enter the workspace quickly; cloning, parsing, and AI generation continue in the background while you browse files. The UI shows pipeline state (cloning → parsing → storyboard → ready) and stays usable throughout.
+Ingest, parse, and storyboard generation run **asynchronously**:
+- You can enter the workspace quickly
+- Cloning, parsing, and AI generation continue in the background while you browse files
+- The UI shows pipeline state (`cloning → parsing → storyboard → ready`) and stays usable throughout
 
 ---
 
