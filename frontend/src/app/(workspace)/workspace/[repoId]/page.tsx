@@ -1972,12 +1972,24 @@ function CommandPalette({ onClose, onToggleSidebar, onSwitchRole, fileTree, seti
                         value={query}
                         onChange={e => setQuery(e.target.value)}
                         onKeyDown={handleKeyDown}
+                        role="combobox"
+                        aria-expanded={visibleItems.length > 0}
+                        aria-controls="command-palette-listbox"
+                        aria-activedescendant={visibleItems.length > 0 ? `command-palette-option-${selectedIndex}` : undefined}
                     />
                 </div>
-                <div className="command-palette-results" ref={resultsRef}>
+                <div
+                        id="command-palette-listbox"
+                        className="command-palette-results"
+                        ref={resultsRef}
+                        role="listbox"
+                    >
                     {visibleItems.map((cmd, i) => (
                         <div
                             key={i}
+                            id={`command-palette-option-${i}`}
+                            role="option"
+                            aria-selected={i === selectedIndex}
                             className={`command-palette-item ${i === selectedIndex ? 'selected' : ''}`}
                             onClick={cmd.action}
                             onMouseEnter={() => setSelectedIndex(i)}
