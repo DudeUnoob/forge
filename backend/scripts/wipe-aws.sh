@@ -91,49 +91,47 @@ print(json.dumps(names))
   echo "   Found $total items — deleting in batches …"
 
   # Batch delete 25 at a time (DynamoDB BatchWriteItem limit)
-  echo "$items" | python3 -c "
-import sys, json
+  # Python handles batching + retries internally to avoid shell↔Python pipe fragility.
+  count=$(echo "$items" | python3 -c "
+import sys, json, subprocess, time
 
-data = json.load(sys.stdin)
+table     = sys.argv[1]
+region    = sys.argv[2]
+key_attrs = json.loads(sys.argv[3])
+
+data  = json.load(sys.stdin)
 items = data['Items']
-table = '$table'
-key_attrs = $key_schema
+count = 0
 
 for i in range(0, len(items), 25):
-    batch = items[i:i+25]
-    requests = []
-    for item in batch:
-        key = {attr: item[attr] for attr in key_attrs}
-        requests.append({'DeleteRequest': {'Key': key}})
-    payload = {table: requests}
-    # Output "<batch_size>\t<payload_json>" so the shell can track counts accurately.
-    print(f\"{len(requests)}\\t{json.dumps(payload)}\")
-" | while IFS=$'\t' read -r batch_size batch; do
-    # Retry loop for unprocessed items returned by DynamoDB
-    retries=0
-    max_retries=5
-    backoff=1
-    request_items="$batch"
-    while :; do
-      result=$(aws dynamodb batch-write-item \
-        --region "$REGION" \
-        --request-items "$request_items" \
-        --output json)
-      unprocessed=$(echo "$result" | python3 -c "import sys, json; data = json.load(sys.stdin); ui = data.get('UnprocessedItems') or {}; print(json.dumps(ui) if ui else '')")
-      if [[ -z "$unprocessed" || "$unprocessed" == "{}" ]]; then
-        break
-      fi
-      retries=$((retries + 1))
-      if (( retries > max_retries )); then
-        echo "   ! Warning: giving up on some unprocessed items after $max_retries retries for table $table" >&2
-        break
-      fi
-      sleep "$backoff"
-      backoff=$((backoff * 2))
-      request_items="$unprocessed"
-    done
-    count=$((count + batch_size))
-  done
+    batch         = items[i:i+25]
+    requests      = [{'DeleteRequest': {'Key': {a: item[a] for a in key_attrs}}} for item in batch]
+    request_items = json.dumps({table: requests})
+    retries, max_retries, backoff = 0, 5, 1
+    while True:
+        res = subprocess.run(
+            ['aws', 'dynamodb', 'batch-write-item',
+             '--region', region,
+             '--request-items', request_items,
+             '--output', 'json'],
+            capture_output=True, text=True)
+        if res.returncode != 0:
+            print(f'   ! AWS error: {res.stderr.strip()}', file=sys.stderr)
+            break
+        unprocessed = json.loads(res.stdout).get('UnprocessedItems') or {}
+        if not unprocessed:
+            break
+        retries += 1
+        if retries > max_retries:
+            print(f'   ! Warning: giving up on unprocessed items after {max_retries} retries', file=sys.stderr)
+            break
+        time.sleep(backoff)
+        backoff *= 2
+        request_items = json.dumps(unprocessed)
+    count += len(batch)
+
+print(count)
+" "$table" "$REGION" "$key_schema")
 
   echo "   ✓ Done."
 }

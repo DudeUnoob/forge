@@ -1316,21 +1316,99 @@ function sanitizeMermaid(raw: string): string {
     s = s.replace(/^```(?:mermaid)?\s*\n?/i, '').replace(/\n?```\s*$/g, '');
     // Remove %%{init:...}%% config directives
     s = s.replace(/%%\{init:[\s\S]*?\}%%/g, '');
-    // Remove HTML tags from node labels
+    // Remove HTML tags
     s = s.replace(/<[^>]+>/g, '');
-    // Wrap unquoted labels that contain special chars in double quotes
-    // Matches node definitions like A[label with spaces] or A(label)
-    s = s.replace(/(\w+)\[([^\]"]+)\]/g, (_m, id, label) => {
-        if (/[^a-zA-Z0-9_]/.test(label)) return `${id}["${label}"]`;
-        return `${id}[${label}]`;
-    });
-    s = s.replace(/(\w+)\(([^)"]+)\)/g, (_m, id, label) => {
-        if (/[^a-zA-Z0-9_]/.test(label)) return `${id}("${label}")`;
-        return `${id}(${label})`;
-    });
     // Normalize line endings
     s = s.replace(/\r\n/g, '\n');
-    return s.trim();
+    s = s.trim();
+
+    const lines = s.split('\n').map(l => l.trimEnd());
+    if (lines.length === 0) return '';
+
+    // Ensure the first meaningful line is a valid diagram declaration
+    let headerIdx = lines.findIndex(l => /^\s*(graph|flowchart)\s+(TD|TB|LR|RL|BT)/i.test(l));
+    if (headerIdx === -1) {
+        // No valid header found — prepend one
+        lines.unshift('graph TD');
+        headerIdx = 0;
+    }
+    // Normalize to "graph TD"
+    lines[headerIdx] = lines[headerIdx].replace(/^\s*(graph|flowchart)\s+(TD|TB|LR|RL|BT)/i, 'graph TD');
+
+    // Process each line after the header to fix node definitions and edges
+    for (let i = headerIdx + 1; i < lines.length; i++) {
+        let line = lines[i];
+
+        // Skip empty lines and comments
+        if (!line.trim() || line.trim().startsWith('%%')) continue;
+
+        // Remove subgraph/end keywords — flatten them
+        if (/^\s*(subgraph|end)\b/i.test(line)) {
+            lines[i] = '';
+            continue;
+        }
+
+        // Fix node definitions: convert any shape to square brackets with quoted labels
+        // Handles: A[label], A["label"], A(label), A("label"), A{label}, A{"label"}, A((label)), A>label]
+        // All become: A["clean label"]
+        line = line.replace(/([A-Za-z_]\w*)(\[{1,2}|[({<]|>\[|[({]{2})("?)([^"}\])\n]*?)\3([\]})>]{1,2}|\]>)/g,
+            (_m, id: string, _open: string, _q: string, label: string, _close: string) => {
+                const cleanLabel = cleanMermaidLabel(label);
+                return `${id}["${cleanLabel}"]`;
+            }
+        );
+
+        // Catch any remaining unquoted square-bracket labels: ID[unquoted stuff]
+        line = line.replace(/([A-Za-z_]\w*)\[([^\]"]+)\]/g, (_m, id, label) => {
+            return `${id}["${cleanMermaidLabel(label)}"]`;
+        });
+
+        // Catch round-paren nodes: ID(label) or ID("label")
+        line = line.replace(/([A-Za-z_]\w*)\(("?)([^)"]*)\2\)/g, (_m, id, _q, label) => {
+            return `${id}["${cleanMermaidLabel(label)}"]`;
+        });
+
+        // Catch curly-brace nodes: ID{label} or ID{"label"}
+        line = line.replace(/([A-Za-z_]\w*)\{("?)([^}"]*)\2\}/g, (_m, id, _q, label) => {
+            return `${id}["${cleanMermaidLabel(label)}"]`;
+        });
+
+        // Normalize edge types: convert ---, -.->, ==>, -.-, ==> all to -->
+        line = line.replace(/\s*={2,}>\s*/g, ' --> ');
+        line = line.replace(/\s*-\.+->\s*/g, ' --> ');
+        line = line.replace(/\s*-{3,}\s*/g, ' --> ');
+
+        // Remove edge labels like --|text|--> or -->|text|
+        line = line.replace(/-->\|[^|]*\|/g, '-->');
+        line = line.replace(/--\|[^|]*\|-->/g, '-->');
+
+        lines[i] = line;
+    }
+
+    const result = lines.filter(l => l !== null).join('\n').trim();
+
+    // Final validation: must start with graph/flowchart and have at least one edge
+    if (!/^graph\s+(TD|TB|LR|RL|BT)/i.test(result)) return '';
+    if (!result.includes('-->')) return '';
+
+    return result;
+}
+
+/** Strip code-like syntax from a Mermaid node label, keeping only readable text. */
+function cleanMermaidLabel(label: string): string {
+    let clean = label.trim();
+    // Remove surrounding quotes if present
+    clean = clean.replace(/^["']|["']$/g, '');
+    // Remove function-call parens: app(req, res) -> app
+    clean = clean.replace(/\([^)]*\)/g, '');
+    // Remove dots for method refs: app.handle -> app handle
+    clean = clean.replace(/\./g, ' ');
+    // Remove remaining special chars that break Mermaid
+    clean = clean.replace(/[[\]{}()<>|#&;:]/g, '');
+    // Collapse whitespace
+    clean = clean.replace(/\s+/g, ' ').trim();
+    // If cleaning left nothing, use a generic label
+    return clean || 'Node';
 }
 
 function MermaidDiagram({ diagram, compact = false }: { diagram: string; compact?: boolean }) {
@@ -1995,11 +2073,11 @@ function CommandPalette({ onClose, onToggleSidebar, onSwitchRole, fileTree, seti
                     />
                 </div>
                 <div
-                        id="command-palette-listbox"
-                        className="command-palette-results"
-                        ref={resultsRef}
-                        role="listbox"
-                    >
+                    id="command-palette-listbox"
+                    className="command-palette-results"
+                    ref={resultsRef}
+                    role="listbox"
+                >
                     {visibleItems.map((cmd, i) => (
                         <div
                             key={i}

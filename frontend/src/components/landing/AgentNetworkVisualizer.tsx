@@ -3,16 +3,40 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-export default function AgentNetworkVisualizer() {
+export default function AgentNetworkVisualizer({
+  status,
+  progress = 0
+}: {
+  status?: string | null;
+  progress?: number;
+}) {
   const [frame, setFrame] = useState(0);
 
   useEffect(() => {
+    // If we're actively ingesting, stop the default cycle
+    if (status) return;
+
     // Cycle through 4 frames every 4.5 seconds
     const interval = setInterval(() => {
       setFrame((prev) => (prev + 1) % 4);
     }, 3500);
     return () => clearInterval(interval);
-  }, []);
+  }, [status]);
+
+  useEffect(() => {
+    // Lock frame to actual progress when an ingest is active
+    if (!status) return;
+
+    if (progress < 35) {
+      setFrame(0);
+    } else if (progress >= 35 && progress < 65) {
+      setFrame(1);
+    } else if (progress >= 65 && progress < 90) {
+      setFrame(2);
+    } else {
+      setFrame(3);
+    }
+  }, [status, progress]);
 
   // Premium bouncy physics from Taste.md
   const spring: any = { type: "spring", stiffness: 100, damping: 20 };
@@ -269,7 +293,7 @@ export default function AgentNetworkVisualizer() {
           >
             <div className="h-2 w-2 rounded-full bg-steel animate-pulse" />
             <span className="font-mono text-[9px] sm:text-[11px] text-steel tracking-widest uppercase">
-              Awaiting Directives
+              {status ? "INITIALIZING UPLINK..." : "Awaiting Directives"}
             </span>
           </motion.div>
         )}
