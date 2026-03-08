@@ -1995,11 +1995,11 @@ function CommandPalette({ onClose, onToggleSidebar, onSwitchRole, fileTree, seti
                     />
                 </div>
                 <div
-                        id="command-palette-listbox"
-                        className="command-palette-results"
-                        ref={resultsRef}
-                        role="listbox"
-                    >
+                    id="command-palette-listbox"
+                    className="command-palette-results"
+                    ref={resultsRef}
+                    role="listbox"
+                >
                     {visibleItems.map((cmd, i) => (
                         <div
                             key={i}
@@ -2445,6 +2445,9 @@ function simpleMarkdown(src: string): string {
     text = text.replace(/(^|[\s(])(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noreferrer noopener">$2</a>');
 
     // 4. Headings
+    text = text.replace(/^###### (.+)$/gm, '<h6>$1</h6>');
+    text = text.replace(/^##### (.+)$/gm, '<h5>$1</h5>');
+    text = text.replace(/^#### (.+)$/gm, '<h4>$1</h4>');
     text = text.replace(/^### (.+)$/gm, '<h3>$1</h3>');
     text = text.replace(/^## (.+)$/gm, '<h2>$1</h2>');
     text = text.replace(/^# (.+)$/gm, '<h1>$1</h1>');
@@ -2498,8 +2501,8 @@ function simpleMarkdown(src: string): string {
     // 8. Line breaks for remaining plain lines (but not inside block elements)
     text = text.replace(/\n/g, '<br/>');
     // Clean up extra breaks around block elements
-    text = text.replace(/<br\/>(<\/?(?:ul|ol|li|blockquote|h[1-3]|pre)>)/g, '$1');
-    text = text.replace(/(<\/?(?:ul|ol|li|blockquote|h[1-3]|pre)>)<br\/>/g, '$1');
+    text = text.replace(/<br\/>(<\/?(?:ul|ol|li|blockquote|h[1-6]|pre)>)/g, '$1');
+    text = text.replace(/(<\/?(?:ul|ol|li|blockquote|h[1-6]|pre)>)<br\/>/g, '$1');
 
     // 9. Restore code blocks
     codeBlocks.forEach((block, i) => {

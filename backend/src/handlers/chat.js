@@ -7,11 +7,13 @@
 import { getItem, putItem, queryItems } from '../lib/dynamo.js';
 import { getText } from '../lib/s3.js';
 import { invokeChat } from '../lib/bedrock.js';
+import { buildChatMessages } from '../lib/chatHistory.js';
 import { PROMPTS } from '../lib/prompts.js';
 import { success, error, parseBody } from '../shared/response.js';
 
 const STORYBOARDS_TABLE = process.env.STORYBOARDS_TABLE;
 const CHAT_TABLE = process.env.CHAT_TABLE;
+const STARTS_WITH_USER_ERROR_PATTERN = /must start with a user message/i;
 
 export const handler = async (event) => {
     try {
@@ -21,7 +23,8 @@ export const handler = async (event) => {
 
         const body = parseBody(event);
         const { message, userId = 'anonymous' } = body;
-        if (!message) return error('message is required', 400);
+        const userMessage = typeof message === 'string' ? message.trim() : String(message ?? '').trim();
+        if (!userMessage) return error('message is required', 400);
 
         // Get block data
         const block = await getItem(STORYBOARDS_TABLE, { storyboardId, blockId });
@@ -53,49 +56,50 @@ export const handler = async (event) => {
             CHAT_TABLE,
             'chatKey = :ck',
             { ':ck': chatKey },
-            { ScanIndexForward: true, Limit: 20 }
+            { ScanIndexForward: false, Limit: 20 }
         );
 
-        // Build messages array for Bedrock
-        // Sanitize history: Bedrock requires alternating user/assistant starting with user
-        const rawHistory = history.map(h => ({
+        const chronologicalHistory = [...history].reverse();
+        const rawHistory = chronologicalHistory.map(h => ({
             role: h.role,
             content: h.content,
         }));
-        const sanitized = [];
-        for (const msg of rawHistory) {
-            const lastRole = sanitized.length > 0 ? sanitized[sanitized.length - 1].role : null;
-            // Skip if same role as previous (would violate alternation)
-            if (msg.role === lastRole) continue;
-            sanitized.push(msg);
-        }
-        // Ensure history starts with a user message
-        while (sanitized.length > 0 && sanitized[0].role !== 'user') {
-            sanitized.shift();
-        }
-        // Ensure history ends with an assistant message before appending the new user message
-        if (sanitized.length > 0 && sanitized[sanitized.length - 1].role === 'user') {
-            sanitized.pop();
-        }
-        const messages = [...sanitized, { role: 'user', content: message }];
+        const messages = buildChatMessages(rawHistory, userMessage);
 
         // Build system prompt with context
         const systemPrompt = PROMPTS.BLOCK_CHAT.system(blockSummary, keyCode, symbolTable);
 
-        // Call Bedrock
-        const aiResponse = await invokeChat(systemPrompt, messages);
+        let aiResponse;
+        let usedMessages = messages;
+
+        try {
+            aiResponse = await invokeChat(systemPrompt, usedMessages);
+        } catch (err) {
+            const messageText = typeof err?.message === 'string' ? err.message : '';
+            if (!STARTS_WITH_USER_ERROR_PATTERN.test(messageText)) throw err;
+
+            usedMessages = [{ role: 'user', content: userMessage }];
+            console.warn('Chat history payload rejected by Bedrock. Retrying with current user message only.', {
+                chatKey,
+                storyboardId,
+                blockId,
+                attemptedMessageCount: messages.length,
+            });
+            aiResponse = await invokeChat(systemPrompt, usedMessages);
+        }
 
         // Store both messages
-        const timestamp = new Date().toISOString();
+        const userTimestamp = new Date().toISOString();
+        const assistantTimestamp = new Date(Date.now() + 1).toISOString();
         await putItem(CHAT_TABLE, {
             chatKey,
-            timestamp: `${timestamp}-user`,
+            timestamp: userTimestamp,
             role: 'user',
-            content: message,
+            content: userMessage,
         });
         await putItem(CHAT_TABLE, {
             chatKey,
-            timestamp: `${timestamp}-assistant`,
+            timestamp: assistantTimestamp,
             role: 'assistant',
             content: aiResponse,
         });
@@ -103,7 +107,7 @@ export const handler = async (event) => {
         return success({
             blockId,
             response: aiResponse,
-            messageCount: messages.length + 1,
+            messageCount: usedMessages.length + 1,
         });
 
     } catch (err) {

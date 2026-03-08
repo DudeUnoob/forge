@@ -95,7 +95,7 @@ print(json.dumps(names))
 import sys, json
 
 data = json.load(sys.stdin)
-items = data['Items']
+items = data.get('Items', [])
 table = '$table'
 key_attrs = $key_schema
 
@@ -106,9 +106,9 @@ for i in range(0, len(items), 25):
         key = {attr: item[attr] for attr in key_attrs}
         requests.append({'DeleteRequest': {'Key': key}})
     payload = {table: requests}
-    # Output "<batch_size>\t<payload_json>" so the shell can track counts accurately.
-    print(f\"{len(requests)}\\t{json.dumps(payload)}\")
-" | while IFS=$'\t' read -r batch_size batch; do
+    # Output <batch_size>|<payload_json> so the shell can track counts accurately
+    print(f\"{len(requests)}|{json.dumps(payload)}\")
+" | while IFS='|' read -r batch_size batch; do
     # Retry loop for unprocessed items returned by DynamoDB
     retries=0
     max_retries=5
