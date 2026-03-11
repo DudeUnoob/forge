@@ -1,18 +1,20 @@
 # Forge
 
-> **Forge** is a computationally-mediated pedagogical scaffolding apparatus designed to transmute arbitrary production-grade source repositories into sequenced modular epistemic units (hereinafter referred to as **blocks**) arranged within an interactive directed walkthrough.
+> **Forge** is a computationally-mediated repository interpretation framework whose primary objective is the transformation of arbitrary production-grade software systems into discretized epistemic traversal units (hereafter referred to as **blocks**) arranged within a sequentially navigable explanatory topology.
 
-Rather than exposing developers to the cognitive entropy of raw repository traversal, Forge attempts to surface the latent architectural narrative embedded within the system and present it through an ordered conceptual progression.
+Rather than presenting developers with the undifferentiated surface area of a large repository—comprising thousands of files, implicit architectural conventions, and partially documented operational assumptions—Forge attempts to algorithmically surface the latent structural intentionality embedded within the system and externalize it as a structured interpretive pathway.
+
+In practical terms, Forge does not merely summarize a repository. Instead, it recontextualizes the codebase into a staged progression of conceptual explanations intended to approximate the mental model that an experienced engineer might construct after extended interaction with the system.
 
 ---
 
 ## Table of Contents
 
-- [Conceptual Overview](#conceptual-overview)
-- [Motivating Context](#motivating-context)
-- [Operational Model](#operational-model)
-- [Functional Capabilities](#functional-capabilities)
-- [Interface Model](#interface-model)
+- [Conceptual Orientation](#conceptual-orientation)
+- [Problem Context](#problem-context)
+- [Operational Pipeline](#operational-pipeline)
+- [System Capabilities](#system-capabilities)
+- [Interface Surfaces](#interface-surfaces)
 - [Intended Practitioner Groups](#intended-practitioner-groups)
 - [Strategic Objectives](#strategic-objectives)
 - [Technology Stack](#technology-stack)
@@ -20,73 +22,90 @@ Rather than exposing developers to the cognitive entropy of raw repository trave
 
 ---
 
-## Conceptual Overview
+## Conceptual Orientation
 
-Forge converts an arbitrary source repository into a guided sequence of **conceptual blocks** that incrementally introduce the architectural structure of the system.
+Forge operates on the premise that most repositories contain an implicit architectural narrative that is rarely articulated explicitly.
 
-Each block typically contains:
+Instead, that narrative is distributed across:
 
-| Component | Description |
-|-----------|-------------|
-| **Learning Objective** | The conceptual purpose of the block |
-| **Narrative Explanation** | AI-generated description of system components |
-| **Relevant Files** | Source files that anchor the explanation |
-| **Diagrammatic Representation** | Visual depiction of component relationships |
-| **Exploration Prompts** | Questions that guide further investigation |
+- file hierarchies
+- naming conventions
+- module boundaries
+- dependency relationships
+- undocumented assumptions
 
-The resulting sequence forms a repository-specific **architectural storyboard** that developers can traverse interactively.
+Developers typically reconstruct this narrative manually through prolonged exposure to the codebase.
+
+Forge attempts to algorithmically derive a representation of that narrative and expose it through a sequence of **conceptual blocks**.
+
+Each block represents a bounded explanatory context describing a portion of the system’s architecture.
+
+Typical block contents include:
+
+| Element | Description |
+|--------|-------------|
+| **Conceptual Objective** | The architectural idea the block attempts to clarify |
+| **Narrative Explanation** | AI-generated interpretive description |
+| **Relevant Files** | Source artifacts associated with the concept |
+| **Dependency Diagram** | Visualization of component relationships |
+| **Exploration Prompts** | Suggested questions for further investigation |
+
+The resulting collection of blocks forms a **repository-specific architectural storyboard**.
 
 ---
 
-## Motivating Context
+## Problem Context
 
-In most engineering organizations, developers are expected to construct a mental model of a codebase through a mixture of:
+The process by which engineers familiarize themselves with large software systems is rarely formalized.
 
-- scattered documentation
-- exploratory code reading
+Instead, developers often rely on a mixture of:
+
+- fragmented documentation
+- exploratory debugging
 - Slack conversations
+- ad-hoc code reading
 - institutional memory
 
-This informal process often produces predictable outcomes.
+This informal process tends to produce several predictable inefficiencies.
 
 <details>
-<summary>Observed Organizational Effects</summary>
+<summary>Common Organizational Outcomes</summary>
 
-- Extended onboarding periods before meaningful contribution
-- Dependency on senior engineers as primary knowledge sources
-- Architectural understanding distributed unevenly across teams
-- Institutional knowledge loss when experienced engineers leave
+- Extended onboarding periods before meaningful contribution becomes possible  
+- Architectural understanding concentrated among a small number of senior engineers  
+- Repeated explanation cycles for new contributors  
+- Gradual loss of system knowledge when experienced engineers leave the organization  
 
 </details>
 
-Forge attempts to mitigate these conditions by transforming the repository itself into a **structured explanatory artifact**.
+Forge attempts to mitigate these conditions by transforming the repository itself into a structured explanatory artifact.
 
 ---
 
-## Operational Model
+## Operational Pipeline
 
-Forge processes repositories through several conceptual stages.
+When a repository is submitted to Forge, the system executes a sequence of interpretive stages.
 
 ```mermaid
 flowchart LR
-A[Repository URL] --> B[Clone Repository]
+A[Repository URL] --> B[Repository Ingestion]
 B --> C[Structural Analysis]
 C --> D[Dependency Graph Construction]
-D --> E[AI Storyboard Generation]
-E --> F[Interactive Walkthrough]
+D --> E[Conceptual Block Generation]
+E --> F[Interactive Exploration Environment]
 ```
 
-At a high level:
+The stages can be summarized as follows:
 
-1. A repository is ingested
-2. Structural relationships between modules are derived
-3. A dependency graph is constructed
-4. AI synthesizes a pedagogically ordered sequence of blocks
-5. The blocks are presented through an interactive exploration interface
+1. The repository is cloned and persisted for analysis.  
+2. Structural inspection derives module and symbol relationships.  
+3. A dependency graph representing system interactions is constructed.  
+4. A language model synthesizes a sequence of explanatory blocks.  
+5. The blocks are presented within an interactive exploration interface.
 
 ---
 
-## Functional Capabilities
+## System Capabilities
 
 ### Repository Ingestion
 
@@ -95,88 +114,100 @@ Forge accepts any Git-accessible repository.
 During ingestion the system will:
 
 - clone the repository
-- persist artifacts to storage
-- memoize previously analyzed commit hashes
+- persist repository artifacts
+- memoize previously analyzed commits
 
 ---
 
 ### Structural Decomposition
 
-Forge constructs a structural model of the repository through **abstract syntax tree analysis**.
+Forge constructs an internal structural model of the repository using **abstract syntax tree analysis**.
 
-This allows the system to identify:
+This process identifies:
 
 - modules
 - exported symbols
 - dependency relationships
+- cross-file references
+
+The resulting structural graph becomes the basis for subsequent explanation generation.
 
 ---
 
-### Storyboard Generation
+### Conceptual Block Generation
 
-Using the derived dependency graph as context, Forge generates **5–10 explanatory blocks** describing the repository architecture.
+Using the structural graph as contextual input, Forge synthesizes a sequence of **5–10 explanatory blocks**.
 
-Each block attempts to:
+Each block attempts to capture:
 
-- explain the conceptual role of a system component
-- link directly to relevant source files
-- visualize relationships between modules
+- a meaningful architectural concept
+- the implementation artifacts responsible for that concept
+- the relationships between relevant system components
+
+Blocks are ordered according to dependency structure rather than file layout.
 
 ---
 
 ### Interactive Exploration
 
-The Forge interface exposes a workspace composed of:
+The Forge interface exposes a workspace designed to resemble a lightweight development environment.
 
-- a hierarchical file explorer
+Developers are presented with:
+
+- a hierarchical repository explorer
 - a read-only source viewer
-- a storyboard panel containing explanatory blocks
+- a conceptual storyboard panel
 
-Developers may traverse blocks sequentially or navigate directly to linked source files.
-
----
-
-### Conversational Assistance
-
-Each block also includes a contextual conversational interface.
-
-Questions asked within a block are constrained to the block’s relevant modules and dependencies in order to reduce hallucinated responses.
+Users may traverse the conceptual blocks sequentially or navigate directly to linked source files.
 
 ---
 
-## Interface Model
+### Conversational Interface
 
-The Forge interface resembles a lightweight development workspace.
+Each conceptual block includes a contextual conversational interface.
 
-| Panel | Purpose |
-|------|--------|
-| **File Explorer** | Navigate repository structure |
-| **Source Viewer** | Inspect implementation |
-| **Storyboard Panel** | Follow conceptual walkthrough |
+Questions asked within this interface are evaluated relative to the specific modules associated with the block in order to reduce hallucinated responses.
 
-The storyboard panel and source viewer remain synchronized so developers can inspect explanations alongside the corresponding source files.
+---
+
+## Interface Surfaces
+
+The Forge interface consists of three primary panels.
+
+| Interface Element | Function |
+|------------------|----------|
+| **File Explorer** | Displays repository structure |
+| **Source Viewer** | Provides read-only access to source artifacts |
+| **Storyboard Panel** | Displays conceptual walkthrough blocks |
+
+The storyboard and source viewer remain synchronized so developers can inspect explanations alongside the relevant implementation.
 
 ---
 
 ## Intended Practitioner Groups
 
-Forge is designed primarily for:
+Forge is primarily intended for situations in which developers must interact with unfamiliar repositories.
 
-- **New engineers** attempting to understand unfamiliar repositories
-- **Cross-team developers** working within large multi-service systems
-- **Engineering leadership** seeking reproducible onboarding workflows
-- **Distributed teams** performing asynchronous collaboration
+Typical practitioner groups include:
+
+- **New engineers** attempting to understand an existing codebase
+- **Cross-team contributors** navigating large multi-service architectures
+- **Technical leadership** seeking reproducible onboarding workflows
+- **Distributed engineering teams** performing asynchronous collaboration
+
+Forge does not replace documentation but instead attempts to provide a structured interpretive layer above the repository itself.
 
 ---
 
 ## Strategic Objectives
 
-Forge aims to:
+Forge aims to achieve several outcomes:
 
-- reduce onboarding time for new contributors
-- improve comprehension of large codebases
-- preserve architectural context within the repository itself
-- provide role-specific learning pathways for developers
+- reduce onboarding time for engineers
+- improve comprehension of complex repositories
+- preserve architectural knowledge within the codebase
+- reduce reliance on informal institutional memory
+- support role-specific exploration pathways
 
 ---
 
@@ -184,15 +215,13 @@ Forge aims to:
 
 ### Frontend
 
-- Next.js
-- React
-- TypeScript
+The Forge client interface is implemented using:
 
-The frontend implements a workspace layout consisting of:
+- Next.js  
+- React  
+- TypeScript  
 
-- file explorer
-- source viewer
-- storyboard interface
+The frontend renders the repository workspace and interactive storyboard interface.
 
 ---
 
@@ -208,13 +237,13 @@ Forge runs on a serverless AWS infrastructure.
 | **S3** | Repository artifact storage |
 | **Amazon Bedrock** | Generative inference |
 
-Repository structure is analyzed using **tree-sitter** to extract syntax trees and derive module relationships.
+Structural analysis is performed using **tree-sitter** to extract syntax trees and derive dependency relationships.
 
 ---
 
 ## Repository Layout
 
-```text
+```
 .
 ├── frontend/     # Next.js application
 ├── backend/      # AWS SAM infrastructure
@@ -226,3 +255,11 @@ Additional implementation details can be found in:
 - `frontend/README.md`
 - `backend/README.md`
 - `PRD/Forge_PRD.md`
+
+---
+
+## Closing Note
+
+Forge attempts to transform the process of repository comprehension from an emergent byproduct of prolonged code exposure into a structured exploratory experience mediated through algorithmically generated interpretive context.
+
+Whether this objective is fully realized remains, to some extent, dependent upon the repository itself.
